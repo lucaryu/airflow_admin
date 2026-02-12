@@ -2,6 +2,84 @@
 
 {% block title %}Toy Airflow - DAG List{% endblock %}
 
+{% block extra_head %}
+<!-- Prism.js for Syntax Highlighting -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" rel="stylesheet" />
+<style>
+    /* Modal Maximized Styles */
+    .modal-content.maximized {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        max-width: none !important;
+        height: 100vh !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        z-index: 1001;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .modal-content.maximized .modal-body-container {
+        max-height: calc(100vh - 80px) !important;
+        height: 100% !important;
+        flex: 1 !important;
+    }
+
+    .modal-header-actions {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .action-icon {
+        cursor: pointer;
+        padding: 4px;
+        color: #aaa;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    .action-icon:hover {
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+    }
+
+    .code-container {
+        position: relative;
+    }
+
+    .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        z-index: 10;
+    }
+
+    .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Prism Fixes */
+    pre[class*="language-"] {
+        margin: 0 !important;
+        background: transparent !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <header class="page-header">
     <h1 class="page-title">Generated DAGs</h1>
@@ -80,24 +158,49 @@
 
 <!-- View Code Modal -->
 <div id="codeModal" class="modal"
-    style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-    <div class="modal-content"
-        style="background-color: #1e1e1e; margin: 5% auto; padding: 20px; border: 1px solid #444; width: 80%; max-width: 900px; border-radius: 8px; color: #e0e0e0;">
-        <span class="close" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;"
-            onclick="closeCodeModal()">&times;</span>
-        <h2 id="codeModalTitle" style="margin-top: 0;">DAG Code</h2>
-        <div style="background-color: #2d2d2d; padding: 15px; border-radius: 4px; overflow: auto; max-height: 600px;">
-            <pre><code id="codeModalContent" style="color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace;">Loading...</code></pre>
+    style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background-color: rgba(0,0,0,0.4);">
+    <div id="codeModalContentContainer" class="modal-content"
+        style="background-color: #1e1e1e; margin: 5% auto; padding: 20px; border: 1px solid #444; width: 80%; max-width: 900px; border-radius: 8px; color: #e0e0e0; display: flex; flex-direction: column; transition: all 0.3s ease;">
+        <div class="modal-header"
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 id="codeModalTitle" style="margin: 0; font-size: 1.25rem;">DAG Code</h2>
+            <div class="modal-header-actions">
+                <span class="action-icon" title="Copy Code" onclick="copyCode()"><i class="far fa-copy"></i></span>
+                <span id="maximizeBtn" class="action-icon" title="Maximize" onclick="toggleMaximize()"><i
+                        class="far fa-window-maximize"></i></span>
+                <span class="action-icon" style="font-size: 24px; line-height: 1;"
+                    onclick="closeCodeModal()">&times;</span>
+            </div>
+        </div>
+        <div class="code-container modal-body-container"
+            style="background-color: #2d2d2d; border-radius: 4px; overflow: auto; flex: 1; max-height: 600px; padding-top: 40px;"
+            id="modalBodyContainer">
+            <button class="copy-btn" onclick="copyCode()" style="top: 15px; right: 20px;"><i class="far fa-copy"></i>
+                Copy</button>
+            <pre
+                style="margin: 0;"><code id="codeModalContent" class="language-python" style="font-family: 'Consolas', 'Monaco', monospace; background: transparent !important;">Loading...</code></pre>
         </div>
     </div>
 </div>
 
+<!-- Prism.js JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
 <script>
     function viewDagCode(id) {
-        console.log('viewDagCode v2 called with ID:', id, 'Type:', typeof id);
-        document.getElementById('codeModal').style.display = 'block';
-        document.getElementById('codeModalContent').textContent = 'Loading...';
-        document.getElementById('codeModalTitle').textContent = 'Loading...';
+        const modal = document.getElementById('codeModal');
+        const contentContainer = document.getElementById('codeModalContentContainer');
+        const codeElement = document.getElementById('codeModalContent');
+        const titleElement = document.getElementById('codeModalTitle');
+
+        modal.style.display = 'block';
+        // Reset state
+        contentContainer.classList.remove('maximized');
+        document.getElementById('maximizeBtn').innerHTML = '<i class="far fa-window-maximize"></i>';
+
+        codeElement.textContent = 'Loading...';
+        titleElement.textContent = 'Loading...';
 
         fetch(`/api/dags/${id}/code`)
             .then(async response => {
@@ -109,32 +212,71 @@
                     return response.json();
                 } else {
                     const text = await response.text();
-                    console.error("Received non-JSON response:", text);
-                    if (response.status === 404) {
-                        throw new Error('DAG file not found (404). Server returned HTML.');
-                    }
-                    if (response.status === 500) {
-                        throw new Error('Internal Server Error (500). Server returned HTML.');
-                    }
-                    // Try to extract title if HTML
-                    const titleMatch = text.match(/<title>(.*?)<\/title>/i);
-                    const errorTitle = titleMatch ? titleMatch[1] : 'Unknown Error';
-                    throw new Error(`Server returned HTML error: ${errorTitle}. Check console for details.`);
+                    throw new Error('Server returned invalid response');
                 }
             })
             .then(data => {
-                document.getElementById('codeModalTitle').textContent = data.filename;
-                document.getElementById('codeModalContent').textContent = data.code;
+                titleElement.textContent = data.filename;
+                codeElement.textContent = data.code;
+
+                // Ensure Prism highlights correctly after content update
+                requestAnimationFrame(() => {
+                    Prism.highlightElement(codeElement);
+                });
             })
             .catch(error => {
                 console.error('Error:', error);
-                document.getElementById('codeModalTitle').textContent = 'Error';
-                document.getElementById('codeModalContent').textContent = error.message || 'An error occurred while fetching the code.';
+                titleElement.textContent = 'Error';
+                codeElement.textContent = error.message;
             });
     }
 
     function closeCodeModal() {
         document.getElementById('codeModal').style.display = 'none';
+    }
+
+    function toggleMaximize() {
+        const contentContainer = document.getElementById('codeModalContentContainer');
+        const btn = document.getElementById('maximizeBtn');
+        const isMaximized = contentContainer.classList.toggle('maximized');
+
+        if (isMaximized) {
+            btn.innerHTML = '<i class="far fa-window-restore"></i>';
+            btn.title = "Restore";
+        } else {
+            btn.innerHTML = '<i class="far fa-window-maximize"></i>';
+            btn.title = "Maximize";
+        }
+    }
+
+    function copyCode() {
+        const code = document.getElementById('codeModalContent').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            const copyBtns = document.querySelectorAll('.copy-btn, .modal-header-actions .action-icon[title="Copy Code"]');
+
+            // Visual feedback
+            const originalText = [];
+            copyBtns.forEach((btn, idx) => {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = 'fas fa-check';
+                    setTimeout(() => {
+                        icon.className = btn.classList.contains('copy-btn') ? 'far fa-copy' : 'far fa-copy';
+                    }, 2000);
+                }
+                if (btn.classList.contains('copy-btn')) {
+                    const span = btn.querySelector('span') || btn;
+                    const oldText = btn.innerText;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = '<i class="far fa-copy"></i> Copy';
+                    }, 2000);
+                }
+            });
+        }).catch(err => {
+            console.error('Failed to copy code:', err);
+            alert('Failed to copy code to clipboard');
+        });
     }
 
     // Close modal when clicking outside of it
