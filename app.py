@@ -192,180 +192,227 @@ class MappingView(BaseView):
         if not source_conn_id or not target_conn_id or not selected_tables:
             return {'status': 'error', 'message': 'Missing required fields'}, 400
 
+        # Get source connection for DB introspection
+        source_conn = Connection.query.get(source_conn_id)
+        if not source_conn:
+            return {'status': 'error', 'message': 'Source connection not found'}, 404
+
+        def get_oracle_columns(conn_obj, owner, table_name):
+            """Fetch real column metadata from Oracle DB."""
+            import oracledb
+            dsn = f"{conn_obj.host}:{conn_obj.port}/{conn_obj.database}"
+            result = {
+                'table_comment': '',
+                'columns': [],  # list of dicts
+            }
+            
+            with oracledb.connect(user=conn_obj.username, password=conn_obj.password, dsn=dsn) as connection:
+                with connection.cursor() as cursor:
+                    # 1. Table COMMENTS
+                    cursor.execute("""
+                        SELECT comments FROM ALL_TAB_COMMENTS 
+                        WHERE owner = :owner AND table_name = :table_name AND table_type = 'TABLE'
+                    """, {'owner': owner, 'table_name': table_name})
+                    row = cursor.fetchone()
+                    result['table_comment'] = row[0] if row and row[0] else ''
+
+                    # 2. PK columns
+                    cursor.execute("""
+                        SELECT cols.column_name
+                        FROM ALL_CONSTRAINTS cons
+                        JOIN ALL_CONS_COLUMNS cols 
+                          ON cons.constraint_name = cols.constraint_name AND cons.owner = cols.owner
+                        WHERE cons.constraint_type = 'P'
+                          AND cons.owner = :owner AND cons.table_name = :table_name
+                    """, {'owner': owner, 'table_name': table_name})
+                    pk_columns = set(row[0] for row in cursor.fetchall())
+
+                    # 3. Partition key columns
+                    cursor.execute("""
+                        SELECT column_name
+                        FROM ALL_PART_KEY_COLUMNS
+                        WHERE owner = :owner AND name = :table_name AND object_type = 'TABLE'
+                    """, {'owner': owner, 'table_name': table_name})
+                    partition_columns = set(row[0] for row in cursor.fetchall())
+
+                    # 4. Column COMMENTS
+                    cursor.execute("""
+                        SELECT column_name, comments FROM ALL_COL_COMMENTS
+                        WHERE owner = :owner AND table_name = :table_name
+                    """, {'owner': owner, 'table_name': table_name})
+                    col_comments = {}
+                    for row in cursor.fetchall():
+                        col_comments[row[0]] = row[1] if row[1] else ''
+
+                    # 5. Column metadata
+                    cursor.execute("""
+                        SELECT column_name, data_type, data_length, data_precision, 
+                               data_scale, nullable
+                        FROM ALL_TAB_COLUMNS
+                        WHERE owner = :owner AND table_name = :table_name
+                        ORDER BY column_id
+                    """, {'owner': owner, 'table_name': table_name})
+                    
+                    for row in cursor.fetchall():
+                        col_name = row[0]
+                        data_type = row[1]
+                        data_length = row[2]
+                        data_precision = row[3]
+                        data_scale = row[4]
+                        nullable = row[5]  # 'Y' or 'N'
+                        
+                        # Format Oracle type to readable string
+                        if data_type in ('VARCHAR2', 'CHAR', 'NVARCHAR2', 'NCHAR'):
+                            type_str = f"{data_type}({data_length})"
+                        elif data_type == 'NUMBER':
+                            if data_precision and data_scale and data_scale > 0:
+                                type_str = f"DECIMAL({data_precision},{data_scale})"
+                            elif data_precision:
+                                type_str = f"NUMBER({data_precision})"
+                            else:
+                                type_str = "INTEGER"
+                        elif data_type in ('FLOAT', 'BINARY_FLOAT', 'BINARY_DOUBLE'):
+                            type_str = data_type
+                        elif data_type == 'DATE':
+                            type_str = 'DATE'
+                        elif 'TIMESTAMP' in data_type:
+                            type_str = 'TIMESTAMP'
+                        elif data_type in ('CLOB', 'NCLOB', 'LONG'):
+                            type_str = 'TEXT'
+                        elif data_type in ('BLOB', 'RAW', 'LONG RAW'):
+                            type_str = data_type
+                        else:
+                            type_str = data_type
+                        
+                        result['columns'].append({
+                            'name': col_name,
+                            'type': type_str,
+                            'is_pk': col_name in pk_columns,
+                            'is_nullable': nullable == 'Y',
+                            'is_partition': col_name in partition_columns,
+                            'comment': col_comments.get(col_name, ''),
+                        })
+            
+            return result
+
+        def format_target_type(oracle_type):
+            """Convert Oracle type to target DB type."""
+            t = oracle_type.upper()
+            if t.startswith('VARCHAR2') or t.startswith('NVARCHAR2'):
+                return oracle_type.replace('VARCHAR2', 'VARCHAR').replace('NVARCHAR2', 'VARCHAR')
+            elif t.startswith('NUMBER') or t == 'INTEGER':
+                return oracle_type
+            elif t.startswith('DECIMAL'):
+                return oracle_type
+            elif t == 'DATE':
+                return 'DATE'
+            elif t.startswith('TIMESTAMP'):
+                return 'TIMESTAMP'
+            elif t == 'TEXT':
+                return 'TEXT'
+            elif t.startswith('CHAR') or t.startswith('NCHAR'):
+                return oracle_type.replace('NCHAR', 'CHAR')
+            else:
+                return oracle_type
+
         new_mappings = []
         for table in selected_tables:
-            # Simple assumption: target table name = source table name (can be customized later)
-            target_table_name = table.split('.')[-1].lower() # e.g., HR.EMPLOYEES -> employees
+            # Parse owner.table_name
+            parts = table.split('.')
+            if len(parts) == 2:
+                owner = parts[0].upper()
+                table_name = parts[1].upper()
+            else:
+                owner = source_conn.username.upper() if source_conn.username else ''
+                table_name = table.upper()
+            
+            target_table_name = table.split('.')[-1].lower()
+            
+            # Try to fetch real columns from DB
+            col_data = None
+            table_comment = ''
+            try:
+                if source_conn.conn_type == 'oracle':
+                    col_data = get_oracle_columns(source_conn, owner, table_name)
+                    table_comment = col_data.get('table_comment', '')
+                    print(f"DEBUG: Fetched {len(col_data['columns'])} real columns for {table}")
+            except Exception as e:
+                print(f"WARNING: Failed to fetch real columns for {table}: {e}")
+                import traceback
+                traceback.print_exc()
+                col_data = None
             
             mapping = Mapping(
                 source_conn_id=source_conn_id,
                 target_conn_id=target_conn_id,
                 source_table=table,
                 target_table=target_table_name,
+                source_table_desc=table_comment,
                 status='Draft'
             )
             db.session.add(mapping)
-            db.session.flush() # Flush to get the mapping ID
+            db.session.flush()
 
-            # Generate Mock Columns
-            # In a real scenario, this would involve DB introspection
-            
-            def get_mock_columns(table_name):
-                table_upper = table_name.upper()
-                
-                # HR Schema
-                if 'EMPLOYEES' in table_upper:
-                    return {'names': ['employee_id', 'first_name', 'last_name', 'email', 'phone_number', 'hire_date', 'job_id', 'salary', 'commission_pct', 'manager_id', 'department_id'], 'types': ['INTEGER', 'VARCHAR(20)', 'VARCHAR(25)', 'VARCHAR(25)', 'VARCHAR(20)', 'DATE', 'VARCHAR(10)', 'DECIMAL(8,2)', 'DECIMAL(2,2)', 'INTEGER', 'INTEGER']}
-                elif 'DEPARTMENTS' in table_upper:
-                    return {'names': ['department_id', 'department_name', 'manager_id', 'location_id'], 'types': ['INTEGER', 'VARCHAR(30)', 'INTEGER', 'INTEGER']}
-                elif 'JOBS' in table_upper:
-                    return {'names': ['job_id', 'job_title', 'min_salary', 'max_salary'], 'types': ['VARCHAR(10)', 'VARCHAR(35)', 'INTEGER', 'INTEGER']}
-                elif 'LOCATIONS' in table_upper:
-                    return {'names': ['location_id', 'street_address', 'postal_code', 'city', 'state_province', 'country_id'], 'types': ['INTEGER', 'VARCHAR(40)', 'VARCHAR(12)', 'VARCHAR(30)', 'VARCHAR(25)', 'CHAR(2)']}
-                elif 'COUNTRIES' in table_upper:
-                    return {'names': ['country_id', 'country_name', 'region_id'], 'types': ['CHAR(2)', 'VARCHAR(40)', 'INTEGER']}
-                elif 'REGIONS' in table_upper:
-                    return {'names': ['region_id', 'region_name'], 'types': ['INTEGER', 'VARCHAR(25)']}
-                elif 'JOB_HISTORY' in table_upper:
-                    return {'names': ['employee_id', 'start_date', 'end_date', 'job_id', 'department_id'], 'types': ['INTEGER', 'DATE', 'DATE', 'VARCHAR(10)', 'INTEGER']}
-                
-                # GOSALES Schema
-                elif 'BRANCH' in table_upper:
-                    return {'names': ['branch_code', 'address1', 'address2', 'city', 'prov_state', 'postal_zone', 'country_code', 'organization_code', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(100)', 'VARCHAR(100)', 'VARCHAR(20)', 'INTEGER', 'VARCHAR(20)', 'TIMESTAMP']}
-                elif 'COUNTRY' in table_upper:
-                    return {'names': ['country_code', 'country_en', 'flag_image', 'sales_territory_code', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'INTEGER', 'TIMESTAMP']}
-                elif 'ORDER_DETAILS' in table_upper:
-                    return {'names': ['order_detail_code', 'order_number', 'product_number', 'quantity', 'unit_cost', 'unit_price', 'unit_sale_price', 'etl_dtm'], 'types': ['INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'DECIMAL(19,4)', 'DECIMAL(19,4)', 'DECIMAL(19,4)', 'TIMESTAMP']}
-                elif 'ORDER_HEADER' in table_upper:
-                    return {'names': ['order_number', 'retailer_site_code', 'retailer_contact_code', 'sales_staff_code', 'sales_branch_code', 'order_date', 'order_status_code', 'etl_dtm'], 'types': ['INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'TIMESTAMP', 'INTEGER', 'TIMESTAMP']}
-                elif 'ORDER_METHOD' in table_upper:
-                    return {'names': ['order_method_code', 'order_method_en', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'TIMESTAMP']}
-                elif 'PRODUCT' in table_upper and 'PRODUCT_line' not in table_upper.lower() and 'product_type' not in table_upper.lower():
-                    return {'names': ['product_number', 'product_name', 'product_line_code', 'product_type_code', 'product_image', 'introduction_date', 'production_cost', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'INTEGER', 'INTEGER', 'VARCHAR(255)', 'DATE', 'DECIMAL(19,4)', 'TIMESTAMP']}
-                elif 'PRODUCT_LINE' in table_upper:
-                    return {'names': ['product_line_code', 'product_line_en', 'product_line_fr', 'product_line_mb', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(255)', 'TIMESTAMP']}
-                elif 'PRODUCT_TYPE' in table_upper:
-                    return {'names': ['product_type_code', 'product_line_code', 'product_type_en', 'etl_dtm'], 'types': ['INTEGER', 'INTEGER', 'VARCHAR(255)', 'TIMESTAMP']}
-                elif 'RETAILER_SITE' in table_upper:
-                    return {'names': ['retailer_site_code', 'retailer_code', 'address1', 'address2', 'city', 'region', 'postal_zone', 'country_code', 'active_indicator', 'etl_dtm'], 'types': ['INTEGER', 'INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(100)', 'VARCHAR(100)', 'VARCHAR(20)', 'INTEGER', 'INTEGER', 'TIMESTAMP']}
-                elif 'RETURN_REASON' in table_upper:
-                    return {'names': ['return_reason_code', 'return_reason_en', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'TIMESTAMP']}
-                elif 'RETURNED_ITEM' in table_upper:
-                    return {'names': ['return_code', 'return_date', 'order_detail_code', 'return_reason_code', 'return_quantity', 'etl_dtm'], 'types': ['INTEGER', 'TIMESTAMP', 'INTEGER', 'INTEGER', 'INTEGER', 'TIMESTAMP']}
-                elif 'SALES_BRANCH' in table_upper:
-                    return {'names': ['sales_branch_code', 'address1', 'city', 'region', 'postal_zone', 'country_code', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'VARCHAR(100)', 'VARCHAR(100)', 'VARCHAR(20)', 'INTEGER', 'TIMESTAMP']}
-                elif 'SALES_STAFF' in table_upper:
-                    return {'names': ['sales_staff_code', 'first_name', 'last_name', 'position_en', 'work_phone', 'extension', 'fax', 'email', 'date_hired', 'sales_branch_code', 'manager_code', 'etl_dtm'], 'types': ['INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(50)', 'VARCHAR(10)', 'VARCHAR(50)', 'VARCHAR(255)', 'DATE', 'INTEGER', 'INTEGER', 'TIMESTAMP']}
-                
-                # GOSALESDW Schema
-                elif 'SLS_ORDER_DIM' in table_upper:
-                     return {'names': ['order_key', 'order_number', 'retailer_name', 'order_date', 'order_day_key'], 'types': ['INTEGER', 'INTEGER', 'VARCHAR(255)', 'TIMESTAMP', 'INTEGER']}
-                elif 'SLS_PRODUCT_DIM' in table_upper:
-                     return {'names': ['product_key', 'product_line_code', 'product_type_code', 'product_number', 'product_name', 'product_image'], 'types': ['INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'VARCHAR(255)', 'VARCHAR(255)']}
-                elif 'SLS_SALES_FACT' in table_upper:
-                     return {'names': ['order_day_key', 'ship_day_key', 'retailer_site_key', 'product_key', 'promotion_key', 'inventory_key', 'unit_cost', 'unit_price', 'unit_sale_price', 'quantity', 'gross_profit'], 'types': ['INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'DECIMAL(19,4)', 'DECIMAL(19,4)', 'DECIMAL(19,4)', 'INTEGER', 'DECIMAL(19,4)']}
-                elif 'GO_BRANCH_DIM' in table_upper:
-                     return {'names': ['branch_key', 'branch_code', 'branch_name', 'address1', 'city', 'prov_state'], 'types': ['INTEGER', 'INTEGER', 'VARCHAR(255)', 'VARCHAR(255)', 'VARCHAR(100)', 'VARCHAR(100)']}
-                elif 'GO_TIME_DIM' in table_upper:
-                     return {'names': ['day_key', 'day_date', 'day_of_week', 'month_key', 'month_of_year', 'quarter_key', 'year_key'], 'types': ['INTEGER', 'DATE', 'INTEGER', 'INTEGER', 'INTEGER', 'INTEGER', 'INTEGER']}
-                elif 'EMP_EMPLOYEE_DIM' in table_upper:
-                     return {'names': ['employee_key', 'employee_code', 'employee_name', 'manager_code', 'manager_name', 'start_date', 'termination_date'], 'types': ['INTEGER', 'INTEGER', 'VARCHAR(255)', 'INTEGER', 'VARCHAR(255)', 'TIMESTAMP', 'TIMESTAMP']}
-                
-                # Smart Fallback for ANY other table
-                else:
-                    cols = {'names': [], 'types': []}
-                    base_name = table_upper.split('.')[-1]
+            if col_data and col_data['columns']:
+                # Use real DB columns
+                has_etl_col = False
+                for i, col in enumerate(col_data['columns']):
+                    col_name = col['name']
+                    if col_name.upper() in ('ETL_DTM', 'ETL_CRY_DTM'):
+                        has_etl_col = True
                     
-                    # PK: TABLE_ID or ID
-                    cols['names'].append(f"{base_name}_ID")
-                    cols['types'].append('INTEGER')
-                    
-                    # Common columns
-                    cols['names'].extend(['NAME', 'DESCRIPTION', 'CREATED_AT', 'UPDATED_AT'])
-                    cols['types'].extend(['VARCHAR(255)', 'TEXT', 'TIMESTAMP', 'TIMESTAMP'])
-                    
-                    # Heuristics based on name
-                    if 'USER' in table_upper:
-                        cols['names'].extend(['EMAIL', 'PASSWORD', 'LAST_LOGIN'])
-                        cols['types'].extend(['VARCHAR(255)', 'VARCHAR(255)', 'TIMESTAMP'])
-                    if 'ORDER' in table_upper:
-                        cols['names'].extend(['ORDER_DATE', 'STATUS', 'TOTAL_AMOUNT'])
-                        cols['types'].extend(['DATE', 'VARCHAR(50)', 'DECIMAL(10,2)'])
-                    if 'PRODUCT' in table_upper or 'ITEM' in table_upper:
-                        cols['names'].extend(['PRICE', 'STOCK_QUANTITY', 'CATEGORY'])
-                        cols['types'].extend(['DECIMAL(10,2)', 'INTEGER', 'VARCHAR(100)'])
-                    if 'LOG' in table_upper or 'HISTORY' in table_upper:
-                         cols['names'].append('LOG_MESSAGE')
-                         cols['types'].append('TEXT')
-                    if 'DIM' in table_upper:
-                        cols['names'][0] = f"{base_name.replace('DIM', '').replace('_', '')}_KEY" # Adjust PK
-                        cols['names'].append('EFFECTIVE_DATE')
-                        cols['types'].append('DATE')
-                    if 'FACT' in table_upper:
-                        cols['names'] = [f"{base_name}_ID"] # Reset for Fact
-                        cols['types'] = ['INTEGER']
-                        cols['names'].extend(['DATE_KEY', 'CUSTOMER_KEY', 'PRODUCT_KEY', 'AMOUNT', 'QUANTITY'])
-                        cols['types'].extend(['INTEGER', 'INTEGER', 'INTEGER', 'DECIMAL(18,2)', 'INTEGER'])
-                        
-                    return cols
-
-            mock_data = get_mock_columns(table)
-            column_names = mock_data['names']
-            column_types = mock_data['types']
-            
-            for i, col_name in enumerate(column_names):
-                is_pk = (i == 0) # Assume first column is PK for mock
-                upper_name = col_name.upper()
-                
-                if upper_name == 'ETL_DTM':
                     mapping_col = MappingColumn(
+                        mapping_id=mapping.id,
+                        source_column=col_name.upper(),
+                        source_type=col['type'],
+                        is_pk=col['is_pk'],
+                        is_nullable=col['is_nullable'],
+                        is_partition=col['is_partition'],
+                        column_order=i + 1,
+                        target_column=col_name.lower(),
+                        target_type=format_target_type(col['type']),
+                        target_logical_name=col['comment'] if col['comment'] else col_name.replace('_', ' ').capitalize(),
+                        source_column_desc=col['comment'],
+                    )
+                    db.session.add(mapping_col)
+                
+                # Add ETL_CRY_DTM if not present
+                if not has_etl_col:
+                    etl_col = MappingColumn(
                         mapping_id=mapping.id,
                         source_column='SYSDATE',
                         source_type='SYSTEM',
                         is_pk=False,
                         is_nullable=False,
-                        column_order=i+1,
+                        is_partition=False,
+                        column_order=len(col_data['columns']) + 1,
                         target_column='ETL_CRY_DTM',
                         target_type='TIMESTAMP',
-                        target_logical_name='ETL Creation Timestamp'
+                        target_logical_name='ETL Creation Time',
+                        source_column_desc='ETL 생성 시간',
                     )
-                else:
-                    mapping_col = MappingColumn(
-                        mapping_id=mapping.id,
-                        source_column=col_name.upper(),
-                        source_type=column_types[i],
-                        is_pk=is_pk,
-                        is_nullable=not is_pk,
-                        column_order=i+1,
-                        target_column=col_name.lower(),
-                        target_type=column_types[i],
-                        target_logical_name=f"{col_name.replace('_', ' ').capitalize()}"
-                    )
-                db.session.add(mapping_col)
-
-            # Add System Column: ETL_CRY_DTM if not already in mock data logic (e.g. if table didn't have ETL_DTM)
-            # Check if we already added a system column (checking names list won't work perfectly if we transformed one)
-            # Use a flag
-            has_etl_col = 'ETL_DTM' in [c.upper() for c in column_names] or 'ETL_CRY_DTM' in [c.upper() for c in column_names]
-            
-            if not has_etl_col:
-                etl_col = MappingColumn(
+                    db.session.add(etl_col)
+            else:
+                # Fallback: minimal columns if DB fetch failed
+                fallback_col = MappingColumn(
                     mapping_id=mapping.id,
-                    source_column='SYSDATE',
-                    source_type='SYSTEM',
+                    source_column='*',
+                    source_type='UNKNOWN',
                     is_pk=False,
-                    is_nullable=False,
-                    column_order=len(column_names) + 1,
-                    target_column='ETL_CRY_DTM',
-                    target_type='TIMESTAMP',
-                    target_logical_name='ETL Creation Timestamp'
+                    is_nullable=True,
+                    column_order=1,
+                    target_column='*',
+                    target_type='UNKNOWN',
+                    target_logical_name='All Columns (DB fetch failed)',
+                    source_column_desc='DB 연결 실패로 컬럼 정보를 가져올 수 없습니다.',
                 )
-                db.session.add(etl_col)
+                db.session.add(fallback_col)
 
             new_mappings.append(mapping)
         
         db.session.commit()
         return {'status': 'success', 'message': f'{len(new_mappings)} mappings generated'}, 200
+
 
     @expose('/delete/<int:id>', methods=['POST'])
     def delete_view(self, id):
@@ -398,7 +445,8 @@ class MappingView(BaseView):
                 'target_logical_name': col.target_logical_name,
                 'is_extraction_condition': col.is_extraction_condition,
                 'is_partition': col.is_partition,
-                'trans_rule': col.trans_rule
+                'trans_rule': col.trans_rule,
+                'source_column_desc': col.source_column_desc or ''
             })
             
         return {
@@ -407,6 +455,7 @@ class MappingView(BaseView):
             'target_table': mapping.target_table,
             'source_conn': f"{mapping.source_conn.name} ({mapping.source_conn.conn_type})",
             'target_conn': f"{mapping.target_conn.name} ({mapping.target_conn.conn_type})",
+            'source_table_desc': mapping.source_table_desc or '',
             'columns': columns
         }, 200
 
@@ -547,6 +596,37 @@ class MappingView(BaseView):
 # Register views
 admin.add_view(ConnectionView(Connection, db.session, name='Connections', endpoint='connections'))
 admin.add_view(MappingView(name='Mappings', endpoint='mappings'))
+
+@app.route('/api/mappings/bulk_delete', methods=['POST'])
+def bulk_delete_mappings():
+    data = request.json
+    mapping_ids = data.get('mapping_ids', [])
+
+    if not mapping_ids:
+        return jsonify({'status': 'error', 'message': 'No mappings selected'}), 400
+
+    success_count = 0
+    errors = []
+    for mid in mapping_ids:
+        try:
+            mapping = Mapping.query.get(mid)
+            if mapping:
+                db.session.delete(mapping)
+                success_count += 1
+            else:
+                errors.append(f'Mapping ID {mid} not found')
+        except Exception as e:
+            errors.append(f'Mapping ID {mid}: {str(e)}')
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': f'Database error: {str(e)}'}), 500
+
+    if errors:
+        return jsonify({'status': 'partial_success', 'message': f'Deleted {success_count} mappings. Errors: {"; ".join(errors)}'}), 207
+    return jsonify({'status': 'success', 'message': f'Successfully deleted {success_count} mappings'}), 200
 
 @app.route('/mapping_list.html')
 def mapping_list_redirect():

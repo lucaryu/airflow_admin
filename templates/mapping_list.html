@@ -111,12 +111,18 @@
 <header class="page-header">
     <h1 class="page-title">Mapping Definitions</h1>
     <div style="display: flex; gap: 8px;">
-        <button class="btn btn-secondary" onclick="downloadSelected(this)">
+        <button class="btn btn-secondary" id="bulkDownloadBtn" style="display: none;" onclick="downloadSelected(this)">
             <i class="fas fa-file-excel" style="color: #1D6F42;"></i>
             <span class="btn-icon-right">Bulk Download</span>
         </button>
-        <button class="btn btn-primary" onclick="openGenerateModal()"
-            style="background-color: #e67e22; border-color: #e67e22;">
+        <button class="btn btn-secondary" id="bulkDeleteBtn"
+            style="display: none; color: var(--error-color); border-color: var(--error-color);"
+            onclick="bulkDeleteMappings(this)">
+            <i class="fas fa-trash"></i>
+            <span class="btn-icon-right">Bulk Delete</span>
+        </button>
+        <button class="btn btn-primary" id="generateDagBtn"
+            style="display: none; background-color: #e67e22; border-color: #e67e22;" onclick="openGenerateModal()">
             <i class="fas fa-magic"></i>
             <span class="btn-icon-right">Generate DAG</span>
         </button>
@@ -141,7 +147,7 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th style="width: 40px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                    <th style="width: 40px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
                     <th>Mapping Name (Source Table)</th>
                     <th>Source Connection</th>
                     <th>Target Connection</th>
@@ -154,7 +160,8 @@
             <tbody>
                 {% for mapping in mappings %}
                 <tr>
-                    <td><input type="checkbox" class="mapping-checkbox" value="{{ mapping.id }}"></td>
+                    <td><input type="checkbox" class="mapping-checkbox" value="{{ mapping.id }}"
+                            onchange="updateSelectionButtons()"></td>
                     <td><strong>{{ mapping.source_table }}</strong></td>
                     <td>{{ mapping.source_conn.name }}</td>
                     <td>{{ mapping.target_conn.name }}</td>
@@ -353,7 +360,11 @@
         fetch(`/admin/mappings/api/detail/${id}`)
             .then(response => response.json())
             .then(data => {
-                modalTitle.innerText = `${data.source_table} -> ${data.target_table}`;
+                let titleText = `${data.source_table} \u2192 ${data.target_table}`;
+                if (data.source_table_desc) {
+                    titleText += `  \u2014  ${data.source_table_desc}`;
+                }
+                modalTitle.innerText = titleText;
                 modalSourceConn.innerText = data.source_conn;
                 modalTargetConn.innerText = data.target_conn;
                 columnSearch.value = ''; // Reset search
@@ -381,8 +392,12 @@
         addInputCell(rowDiv, col.column_order || '', 'number');
         // Physical Name
         addInputCell(rowDiv, col.source_column || '');
-        // Logical Name
-        addInputCell(rowDiv, col.target_logical_name || '');
+        // Logical Name (with column COMMENTS as tooltip)
+        const logicalCell = addInputCell(rowDiv, col.target_logical_name || '');
+        if (col.source_column_desc) {
+            const input = logicalCell.querySelector('input');
+            if (input) input.title = col.source_column_desc;
+        }
         // Type
         addInputCell(rowDiv, col.source_type || '');
         // Null
@@ -486,6 +501,7 @@
         input.value = value;
         div.appendChild(input);
         parent.appendChild(div);
+        return div;
     }
 
     function addCheckboxCell(parent, isChecked) {
@@ -566,6 +582,82 @@
         const selectAll = document.getElementById('selectAll');
         const checkboxes = document.querySelectorAll('.mapping-checkbox');
         checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateSelectionButtons();
+    }
+
+    function updateSelectionButtons() {
+        const checked = document.querySelectorAll('.mapping-checkbox:checked');
+        const allCheckboxes = document.querySelectorAll('.mapping-checkbox');
+        const selectAll = document.getElementById('selectAll');
+        const bulkDownloadBtn = document.getElementById('bulkDownloadBtn');
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        const generateDagBtn = document.getElementById('generateDagBtn');
+
+        if (checked.length > 0) {
+            bulkDownloadBtn.style.display = 'inline-flex';
+            bulkDownloadBtn.querySelector('.btn-icon-right').textContent = `Bulk Download (${checked.length})`;
+            bulkDeleteBtn.style.display = 'inline-flex';
+            bulkDeleteBtn.querySelector('.btn-icon-right').textContent = `Bulk Delete (${checked.length})`;
+            generateDagBtn.style.display = 'inline-flex';
+            generateDagBtn.querySelector('.btn-icon-right').textContent = `Generate DAG (${checked.length})`;
+        } else {
+            bulkDownloadBtn.style.display = 'none';
+            bulkDeleteBtn.style.display = 'none';
+            generateDagBtn.style.display = 'none';
+        }
+
+        // Update select all checkbox state
+        if (checked.length === allCheckboxes.length && allCheckboxes.length > 0) {
+            selectAll.checked = true;
+            selectAll.indeterminate = false;
+        } else if (checked.length > 0) {
+            selectAll.checked = false;
+            selectAll.indeterminate = true;
+        } else {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+        }
+    }
+
+    function bulkDeleteMappings(btn) {
+        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+        const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (ids.length === 0) {
+            alert('Please select at least one mapping to delete.');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete ${ids.length} mapping(s)? This action cannot be undone.`)) {
+            return;
+        }
+
+        const originalContent = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+        fetch('/api/mappings/bulk_delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mapping_ids: ids })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success' || data.status === 'partial_success') {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during bulk deletion.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            });
     }
 
     function downloadSelected(btn) {

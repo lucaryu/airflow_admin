@@ -23,6 +23,7 @@ class Mapping(db.Model):
     target_conn_id = db.Column(db.Integer, db.ForeignKey('connection.id'), nullable=False)
     source_table = db.Column(db.String(255), nullable=False)
     target_table = db.Column(db.String(255), nullable=False)
+    source_table_desc = db.Column(db.String(500), nullable=True)  # Table COMMENTS from DB
     status = db.Column(db.String(50), default='Draft')
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
@@ -44,6 +45,7 @@ class MappingColumn(db.Model):
     target_column = db.Column(db.String(255))
     target_type = db.Column(db.String(50))
     target_logical_name = db.Column(db.String(255)) # Added logical name
+    source_column_desc = db.Column(db.String(500), nullable=True)  # Column COMMENTS from DB
     is_extraction_condition = db.Column(db.Boolean, default=False)
     is_partition = db.Column(db.Boolean, default=False)
     trans_rule = db.Column(db.String(500), nullable=True)
