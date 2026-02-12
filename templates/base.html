@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Toy Airflow{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Global Settings Dropdown Styles */
+        .global-settings-container {
+            position: absolute;
+            top: 32px;
+            /* Alims with main-content padding (spacing-xl) */
+            right: 32px;
+            /* Aligns with main-content padding */
+            z-index: 1000;
+        }
+
+        .settings-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 16px;
+        }
+
+        .settings-btn:hover,
+        .settings-btn.active {
+            background-color: var(--hover-bg);
+            border-color: var(--primary-color);
+        }
+
+        .settings-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            min-width: 200px;
+            overflow: hidden;
+        }
+
+        .settings-dropdown.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: background-color 0.2s, color 0.2s;
+            font-size: 14px;
+        }
+
+        .dropdown-item:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .dropdown-item i {
+            width: 20px;
+            margin-right: 10px;
+            text-align: center;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 4px 0;
+        }
+
+        /* Prevent header content from overlapping with settings icon */
+        .page-header {
+            padding-right: 60px;
+        }
+    </style>
+    {% block styles %}{% endblock %}
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                Toy Airflow
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('mappings.index') }}"
+                        class="nav-link {% if request.endpoint and 'mappings' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-map nav-icon"></i>
+                        Mappings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('serve_pages', page_name='dag_generation_list') }}"
+                        class="nav-link {% if request.path == '/dag_generation_list.html' %}active{% endif %}">
+                        <i class="fas fa-file-code nav-icon"></i>
+                        DAGs
+                    </a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content" style="position: relative;">
+            <!-- Global Setting Dropdown -->
+            <div class="global-settings-container">
+                <button class="settings-btn" id="globalSettingsBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="settings-dropdown" id="globalSettingsDropdown">
+                    <a href="{{ url_for('connections.index_view') }}" class="dropdown-item">
+                        <i class="fas fa-plug"></i> Connections
+                    </a>
+                    <a href="{{ url_for('dag_template_view') }}" class="dropdown-item">
+                        <i class="fas fa-layer-group"></i> Templates
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a href="{{ url_for('variable_list_view') }}" class="dropdown-item">
+                        <i class="fas fa-code"></i> Template Variables
+                    </a>
+                    <a href="{{ url_for('meta_db_settings_view') }}" class="dropdown-item">
+                        <i class="fas fa-database"></i> Meta DB Settings
+                    </a>
+                </div>
+            </div>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Global Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+    <script>
+        // Global Settings Dropdown Logic
+        document.addEventListener('DOMContentLoaded', function () {
+            const settingsBtn = document.getElementById('globalSettingsBtn');
+            const dropdown = document.getElementById('globalSettingsDropdown');
+
+            if (settingsBtn && dropdown) {
+                settingsBtn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    dropdown.classList.toggle('show');
+                    settingsBtn.classList.toggle('active');
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function (e) {
+                    if (!settingsBtn.contains(e.target) && !dropdown.contains(e.target)) {
+                        dropdown.classList.remove('show');
+                        settingsBtn.classList.remove('active');
+                    }
+                });
+            }
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

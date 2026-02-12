@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - Add Connection{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div style="display: flex; align-items: center;">
+        <a href="{{ url_for('connections.index_view') }}" class="btn btn-secondary" style="margin-right: 16px;">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="page-title">Add New Connection</h1>
+    </div>
+</header>
+
+<div class="content-body" style="max-width: 800px; margin: 0 auto;">
+    <div class="card">
+        <form method="POST"
+            action="{{ url_for('connections.edit_view', id=connection.id) if connection else url_for('connections.create_view') }}">
+
+            <div class="form-group">
+                <label class="form-label" for="conn-name">Connection Name</label>
+                <input type="text" id="conn-name" name="name" class="form-input"
+                    placeholder="e.g., Production Oracle DB" value="{{ connection.name if connection else '' }}"
+                    required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="conn-type">Connection Type</label>
+                <select id="conn-type" name="conn_type" class="form-select" required>
+                    <option value="">Select Type...</option>
+                    <option value="oracle" {% if connection and connection.conn_type=='oracle' %}selected{% endif %}>
+                        Oracle</option>
+                    <option value="postgres" {% if connection and connection.conn_type=='postgres' %}selected{% endif
+                        %}>PostgreSQL</option>
+                    <option value="mysql" {% if connection and connection.conn_type=='mysql' %}selected{% endif %}>MySQL
+                    </option>
+                    <option value="mssql" {% if connection and connection.conn_type=='mssql' %}selected{% endif %}>SQL
+                        Server</option>
+                    <option value="gbq" {% if connection and connection.conn_type=='gbq' %}selected{% endif %}>Google
+                        BigQuery</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: var(--spacing-md);">
+                <div class="form-group" style="flex: 2;">
+                    <label class="form-label" for="conn-host">Host</label>
+                    <input type="text" id="conn-host" name="host" class="form-input" placeholder="127.0.0.1"
+                        value="{{ connection.host if connection else '' }}">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label" for="conn-port">Port</label>
+                    <input type="number" id="conn-port" name="port" class="form-input" placeholder="5432"
+                        value="{{ connection.port if connection else '' }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="conn-db">Database Name / SID</label>
+                <input type="text" id="conn-db" name="database" class="form-input" placeholder="my_database"
+                    value="{{ connection.database if connection else '' }}">
+            </div>
+
+            <div style="display: flex; gap: var(--spacing-md);">
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label" for="conn-user">Username</label>
+                    <input type="text" id="conn-user" name="username" class="form-input" placeholder="admin"
+                        value="{{ connection.username if connection else '' }}">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label class="form-label" for="conn-pass">Password</label>
+                    <input type="password" id="conn-pass" name="password" class="form-input"
+                        placeholder="{{ '••••••••' if connection else '' }}">
+                    {% if connection %}
+                    <div style="font-size: 0.8rem; color: #aaa; margin-top: 4px;">Leave blank to keep existing password
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div
+                style="margin-top: var(--spacing-xl); display: flex; justify-content: flex-end; gap: var(--spacing-md);">
+                <a href="{{ url_for('connections.index_view') }}" class="btn btn-secondary"
+                    style="text-decoration: none; display: inline-flex; align-items: center;">Cancel</a>
+                <button type="button" id="btn-test-conn" class="btn btn-secondary">Test Connection</button>
+                <button type="submit" class="btn btn-primary">{{ 'Update Connection' if connection else 'Save
+                    Connection' }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const testBtn = document.getElementById('btn-test-conn');
+    if (testBtn) {
+        testBtn.addEventListener('click', function () {
+            const btn = this;
+            const originalText = btn.innerText;
+            btn.innerText = 'Testing...';
+            btn.disabled = true;
+
+            // Simple form data extraction
+            const form = document.querySelector('form');
+            const data = {};
+            new FormData(form).forEach((value, key) => data[key] = value);
+
+            // Test ID-based testing if editing, or raw data if new
+            const isEdit = "{{ 'true' if connection else 'false' }}" === "true";
+            const testUrl = isEdit && '{{ connection.id if connection else "" }}'
+                ? '/admin/connections/test/{{ connection.id if connection else "" }}'
+                : '/admin/connections/test';
+
+            // For raw data testing we need to send the data
+            // For existing ID testing, we might want to send overrides or just basic ping.
+            // But per app.py:
+            // test_connection (POST /test) -> takes body
+            // test_connection_id (POST /test/<id>) -> uses DB data
+
+            // To simplify, if we are on the edit page but the user changed values, we probably want to test *those* values.
+            // The existing app.py logic for `/test` seems to take raw data. Let's stick to that for immediate feedback.
+
+            fetch('/admin/connections/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(res => res.json())
+                .then(res => {
+                    alert(res.status === 'success' ? 'Success: ' + res.message : 'Error: ' + res.message);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('An error occurred during testing.');
+                })
+                .finally(() => {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                });
+        });
+    }
+</script>
+{% endblock %}

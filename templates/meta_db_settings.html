@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - Meta DB Settings{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title">Meta DB Settings</h1>
+</header>
+
+<div class="content-body">
+    <div class="card">
+        <h3 style="margin-bottom: var(--spacing-md);">Database Configuration</h3>
+        <div class="form-group">
+            <label class="form-label">Database Name</label>
+            <input type="text" class="form-input" value="toy_airflow.db" readonly>
+            <p style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);">
+                Current SQLite database path: <code>d:\toy_airflow4\toy_airflow.db</code>
+            </p>
+        </div>
+        <div class="alert alert-info" style="margin-top: var(--spacing-md);">
+            <i class="fas fa-info-circle"></i> Meta DB settings are currently read-only.
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - DAG Template Registration{% endblock %}
+
+{% block styles %}
+<style>
+    .code-editor {
+        font-family: 'Consolas', 'Monaco', monospace;
+        background-color: #1e1e1e;
+        color: #dcdcdc;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: var(--spacing-md);
+        width: 100%;
+        height: 300px;
+        overflow: auto;
+        white-space: pre;
+    }
+
+    /* Modal Styles */
+    .modal-container {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 500px;
+        background: var(--card-bg);
+        border-radius: var(--border-radius);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .modal-container.active {
+        display: flex;
+    }
+
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        backdrop-filter: blur(2px);
+    }
+
+    .modal-overlay.active {
+        display: block;
+    }
+
+    .modal-header {
+        padding: var(--spacing-md);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-dark);
+    }
+
+    .modal-body {
+        padding: var(--spacing-md);
+    }
+
+    .modal-footer {
+        padding: var(--spacing-md);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        background: var(--bg-dark);
+    }
+
+    /* Fullscreen Editor Styles */
+    /* Fullscreen Editor Styles */
+    #editor-wrapper.fullscreen-active {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        background: var(--bg-dark);
+        /* Ensure background */
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        /* Remove padding if handled by children */
+    }
+
+    #editor-wrapper.fullscreen-active .CodeMirror {
+        height: 100% !important;
+        /* Fill remaining space */
+        flex: 1;
+    }
+
+    #editor-wrapper.fullscreen-active #variable-toolbar {
+        border-radius: 0;
+        /* Ensure toolbar is visible and styled correctly */
+    }
+
+    .fullscreen-btn {
+        margin-left: auto;
+        /* Push to right */
+        cursor: pointer;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        padding: 4px;
+        transition: color 0.2s;
+    }
+
+    .fullscreen-btn:hover {
+        color: var(--text-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title">DAG Templates</h1>
+    <div style="display: flex; gap: var(--spacing-sm);">
+        <!-- The global settings icon is in base.html now. -->
+        <button class="btn btn-primary" id="btn-regist-template">
+            <i class="fas fa-plus"></i>
+            <span class="btn-icon-right">Register New Template</span>
+        </button>
+    </div>
+</header>
+
+<div class="content-body">
+    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--spacing-lg);">
+        <!-- Template List -->
+        <div>
+            <div class="card">
+                <h3 style="margin-bottom: var(--spacing-md);">Existing Templates</h3>
+                <ul class="template-list">
+                    {% for template in templates %}
+                    <li class="template-item" data-id="{{ template.id }}"
+                        style="padding: var(--spacing-sm); border-bottom: 1px solid var(--border-color); cursor: pointer; {% if loop.first %} background-color: rgba(25, 127, 230, 0.1); border-left: 3px solid var(--primary-color); font-weight: 600; {% endif %}">
+                        <div style="font-weight: 600;">{{ template.name }}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">{{ template.source_type }}
+                            to {{ template.target_type }}</div>
+                    </li>
+                    {% else %}
+                    <li style="padding: var(--spacing-sm); color: var(--text-secondary);">No templates
+                        found.
+                    </li>
+                    {% endfor %}
+                </ul>
+                </ul>
+            </div>
+
+
+        </div>
+
+        <!-- Template Editor -->
+        <div>
+            <div class="card">
+                <h3 style="margin-bottom: var(--spacing-md);">Template Details</h3>
+                <form>
+                    <div class="form-group">
+                        <label class="form-label">Template Name</label>
+                        <input type="text" class="form-input" id="template-name"
+                            value="Oracle to PostgreSQL (Full Load)">
+                    </div>
+
+                    <div style="display: flex; gap: var(--spacing-md);">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Source Type</label>
+                            <select class="form-select" id="source-type">
+                                <option selected>Oracle</option>
+                                <option>MySQL</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label">Target Type</label>
+                            <select class="form-select" id="target-type">
+                                <option selected>PostgreSQL</option>
+                                <option>BigQuery</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Template Description</label>
+                        <textarea class="form-input" id="template-comment" rows="3"
+                            placeholder="Enter template description..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Template Code (Jinja2)</label>
+                        <div id="editor-wrapper"
+                            style="border: 1px solid var(--border-color); border-radius: var(--border-radius); overflow: hidden;">
+                            <div class="toolbar"
+                                style="padding: var(--spacing-sm); display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center; background-color: var(--card-bg); border-bottom: 1px solid var(--border-color);"
+                                id="variable-toolbar">
+                                <!-- Buttons will be loaded here dynamically -->
+                                <span style="color: var(--text-secondary); font-size: 12px;">Loading toolbar...</span>
+
+                                <!-- Fullscreen Toggle Button -->
+                                <button type="button" class="fullscreen-btn" id="btn-fullscreen"
+                                    title="Toggle Fullscreen">
+                                    <i class="fas fa-expand"></i>
+                                </button>
+                            </div>
+                            <textarea class="code-editor" id="template-code">
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+from datetime import datetime
+
+default_args = {
+'owner': 'airflow',
+'start_date': datetime(2024, 1, 1),
+}
+
+with DAG('{{ dag_id }}', default_args=default_args, schedule_interval='@daily') as dag:
+
+def extract():
+    print("Extracting from {{ source_conn }}")
+
+extract_task = PythonOperator(
+    task_id='extract_data',
+    python_callable=extract
+)
+                            </textarea>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="template-id">
+                    <div style="display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+                        <button type="button" class="btn btn-secondary" id="btn-delete-template"
+                            style="display: none; background-color: var(--error-color);">Delete</button>
+                        <button type="button" class="btn btn-primary" id="btn-save-template">Save
+                            Template</button>
+                        <button type="button" class="btn btn-primary" id="btn-update-template"
+                            style="display: none;">Update Template</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+
+<!-- CodeMirror JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+
+<script>
+    // Initialize CodeMirror
+    let codeMirrorEditor;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const textarea = document.getElementById('template-code');
+        if (textarea) {
+            codeMirrorEditor = CodeMirror.fromTextArea(textarea, {
+                mode: 'python',
+                theme: 'dracula',
+                lineNumbers: true,
+                indentUnit: 4,
+                smartIndent: true,
+                matchBrackets: true,
+                autofocus: false,
+                viewportMargin: Infinity
+            });
+
+            // Sync with textarea on change
+            codeMirrorEditor.on('change', function (cm) {
+                textarea.value = cm.getValue();
+            });
+
+            // Fullscreen Toggle Logic
+            const fsBtn = document.getElementById('btn-fullscreen');
+            if (fsBtn) {
+                fsBtn.addEventListener('click', function () {
+                    const wrapper = document.getElementById('editor-wrapper');
+                    const isFullscreen = wrapper.classList.toggle('fullscreen-active');
+
+                    // Update icon
+                    const icon = fsBtn.querySelector('i');
+                    if (isFullscreen) {
+                        icon.classList.remove('fa-expand');
+                        icon.classList.add('fa-compress');
+                        codeMirrorEditor.refresh();
+                    } else {
+                        icon.classList.remove('fa-compress');
+                        icon.classList.add('fa-expand');
+                        codeMirrorEditor.refresh();
+                    }
+                    codeMirrorEditor.focus();
+                });
+            }
+
+            // Esc key to exit fullscreen
+            codeMirrorEditor.addKeyMap({
+                "Esc": function (cm) {
+                    const wrapper = document.getElementById('editor-wrapper');
+                    if (wrapper.classList.contains('fullscreen-active')) {
+                        wrapper.classList.remove('fullscreen-active');
+                        const fsBtn = document.getElementById('btn-fullscreen');
+                        if (fsBtn) {
+                            const icon = fsBtn.querySelector('i');
+                            icon.classList.remove('fa-compress');
+                            icon.classList.add('fa-expand');
+                        }
+                        cm.refresh();
+                    }
+                }
+            });
+        }
+    });
+
+    function closeAllModals() {
+        document.querySelectorAll('.modal-container').forEach(modal => modal.classList.remove('active'));
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.classList.remove('active');
+    }
+
+    // Override toggleModal to handle overlay
+    window.toggleModal = function (modalId) {
+        const modal = document.getElementById(modalId);
+        const overlay = document.getElementById('modal-overlay');
+        if (modal) {
+            const isActive = modal.classList.contains('active');
+            if (isActive) {
+                modal.classList.remove('active');
+                if (overlay) overlay.classList.remove('active');
+            } else {
+                modal.classList.add('active');
+                if (overlay) overlay.classList.add('active');
+            }
+        }
+    }
+</script>
+{% endblock %}

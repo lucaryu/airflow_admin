@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - DAG Viewer{% endblock %}
+
+{% block styles %}
+<style>
+    .code-block {
+        font-family: 'Consolas', 'Monaco', monospace;
+        background-color: #1e1e1e;
+        color: #dcdcdc;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: var(--spacing-md);
+        width: 100%;
+        height: calc(100vh - 200px);
+        overflow: auto;
+        white-space: pre;
+        line-height: 1.6;
+    }
+
+    .line-number {
+        color: #666;
+        margin-right: 16px;
+        user-select: none;
+        display: inline-block;
+        width: 30px;
+        text-align: right;
+    }
+
+    .nav-back {
+        display: flex;
+        align-items: center;
+        color: var(--text-secondary);
+        text-decoration: none;
+        margin-bottom: var(--spacing-sm);
+        font-size: var(--font-size-sm);
+    }
+
+    .nav-back:hover {
+        color: var(--primary-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('serve_pages', page_name='dag_generation_list') }}" class="nav-back">
+    <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Back to DAG List
+</a>
+
+<header class="page-header" style="margin-bottom: var(--spacing-md);">
+    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <div>
+            <h1 class="page-title">oracle_sales_daily_load.py</h1>
+            <span class="status-badge status-active" style="margin-top: 4px; display: inline-block;">Deployed</span>
+        </div>
+        <div style="display: flex; gap: var(--spacing-sm);">
+            <button class="btn btn-secondary"><i class="fas fa-edit"></i> Edit</button>
+            <button class="btn btn-secondary"><i class="fas fa-download"></i> Download</button>
+            <button class="btn btn-primary"><i class="fas fa-paper-plane"></i> Deploy</button>
+        </div>
+    </div>
+</header>
+
+<div class="content-body">
+    <div class="code-block">
+        <span class="line-number">1</span>from airflow import DAG
+        <span class="line-number">2</span>from airflow.providers.oracle.operators.oracle import
+        OracleOperator
+        <span class="line-number">3</span>from airflow.providers.postgres.operators.postgres import
+        PostgresOperator
+        <span class="line-number">4</span>from datetime import datetime, timedelta
+        <span class="line-number">5</span>
+        <span class="line-number">6</span>default_args = {
+        <span class="line-number">7</span> 'owner': 'data_team',
+        <span class="line-number">8</span> 'depends_on_past': False,
+        <span class="line-number">9</span> 'start_date': datetime(2024, 1, 1),
+        <span class="line-number">10</span> 'email_on_failure': True,
+        <span class="line-number">11</span> 'email_on_retry': False,
+        <span class="line-number">12</span> 'retries': 1,
+        <span class="line-number">13</span> 'retry_delay': timedelta(minutes=5),
+        <span class="line-number">14</span>}
+        <span class="line-number">15</span>
+        <span class="line-number">16</span>with DAG(
+        <span class="line-number">17</span> 'oracle_sales_daily_load',
+        <span class="line-number">18</span> default_args=default_args,
+        <span class="line-number">19</span> description='Load sales data from Oracle to Postgres',
+        <span class="line-number">20</span> schedule_interval='@daily',
+        <span class="line-number">21</span> tags=['sales', 'oracle', 'postgres'],
+        <span class="line-number">22</span>) as dag:
+        <span class="line-number">23</span>
+        <span class="line-number">24</span> # Task: Extract data
+        <span class="line-number">25</span> extract_task = OracleOperator(
+        <span class="line-number">26</span> task_id='extract_sales_data',
+        <span class="line-number">27</span> oracle_conn_id='Oracle_Prod_DB',
+        <span class="line-number">28</span> sql='SELECT * FROM SALES.TRANSACTIONS WHERE TXN_DATE = SYSDATE -
+        1'
+        <span class="line-number">29</span> )
+        <span class="line-number">30</span>
+        <span class="line-number">31</span> # Task: Load data
+        <span class="line-number">32</span> load_task = PostgresOperator(
+        <span class="line-number">33</span> task_id='load_sales_data',
+        <span class="line-number">34</span> postgres_conn_id='Postgres_DW',
+        <span class="line-number">35</span> sql='INSERT INTO public.transactions_raw VALUES ...'
+        <span class="line-number">36</span> )
+        <span class="line-number">37</span>
+        <span class="line-number">38</span> extract_task >> load_task
+    </div>
+</div>
+{% endblock %}

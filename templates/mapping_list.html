@@ -1,0 +1,847 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - Mapping List{% endblock %}
+
+{% block styles %}
+<style>
+    /* Modal Styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        backdrop-filter: blur(2px);
+    }
+
+    .modal-container {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        max-width: 1000px;
+        height: 80%;
+        max-height: 800px;
+        background: var(--card-bg);
+        border-radius: var(--border-radius);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        z-index: 1001;
+        flex-direction: column;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .modal-container.maximized {
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        top: 0;
+        left: 0;
+        transform: none;
+        border-radius: 0;
+    }
+
+    .modal-header {
+        padding: var(--spacing-md);
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: var(--bg-dark);
+    }
+
+    .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--spacing-md);
+    }
+
+    .modal-footer {
+        padding: var(--spacing-md);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        background: var(--bg-dark);
+    }
+
+    .column-grid {
+        display: grid;
+        grid-template-columns: 40px 1.5fr 1.5fr 1fr 40px 40px 40px 40px 2fr 1.5fr 1fr 40px;
+        gap: 1px;
+        background: var(--border-color);
+        border: 1px solid var(--border-color);
+    }
+
+    .column-header {
+        background: #2a2a2a;
+        padding: 8px;
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .column-cell {
+        background: var(--card-bg);
+        padding: 8px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+    }
+
+    .column-cell input {
+        width: 100%;
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+    }
+
+    .column-cell input:focus {
+        outline: none;
+        border-bottom: 1px solid var(--accent-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title">Mapping Definitions</h1>
+    <div style="display: flex; gap: 8px;">
+        <button class="btn btn-secondary" onclick="downloadSelected(this)">
+            <i class="fas fa-file-excel" style="color: #1D6F42;"></i>
+            <span class="btn-icon-right">Bulk Download</span>
+        </button>
+        <button class="btn btn-primary" onclick="openGenerateModal()"
+            style="background-color: #e67e22; border-color: #e67e22;">
+            <i class="fas fa-magic"></i>
+            <span class="btn-icon-right">Generate DAG</span>
+        </button>
+        <a href="{{ url_for('mappings.new_mapping') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i>
+            <span class="btn-icon-right">New Mapping</span>
+        </a>
+    </div>
+</header>
+
+<div class="content-body">
+    <!-- Search/Filter Area -->
+    <div class="card"
+        style="display: flex; gap: var(--spacing-md); align-items: center; padding: var(--spacing-sm) var(--spacing-md);">
+        <div style="flex: 1;">
+            <input type="text" id="mapping-search" class="form-input" placeholder="Search mappings...">
+        </div>
+    </div>
+
+    <!-- Mapping Table -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                    <th>Mapping Name (Source Table)</th>
+                    <th>Source Connection</th>
+                    <th>Target Connection</th>
+                    <th>Target Table</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for mapping in mappings %}
+                <tr>
+                    <td><input type="checkbox" class="mapping-checkbox" value="{{ mapping.id }}"></td>
+                    <td><strong>{{ mapping.source_table }}</strong></td>
+                    <td>{{ mapping.source_conn.name }}</td>
+                    <td>{{ mapping.target_conn.name }}</td>
+                    <td>{{ mapping.target_table }}</td>
+                    <td><span class="status-badge status-active">{{ mapping.status }}</span></td>
+                    <td>{{ mapping.created_at }}</td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 4px 8px;"
+                            onclick="showDdl({{ mapping.id }}, this)" title="Generate DDL"><i
+                                class="fas fa-code"></i></button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px;"
+                            onclick="downloadSingle({{ mapping.id }}, this)" title="Download Excel"><i
+                                class="fas fa-file-excel" style="color: #1D6F42;"></i></button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px;"
+                            onclick="openModal({{ mapping.id }})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-secondary"
+                            style="padding: 4px 8px; color: var(--error-color); border-color: var(--error-color);"
+                            onclick="deleteMapping({{ mapping.id }})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; color: #aaa;">No mappings found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="modal-overlay" class="modal-overlay"></div>
+<div id="edit-modal" class="modal-container">
+    <div class="modal-header">
+        <h3 id="modal-title" style="margin: 0; font-weight: 600;">Mapping Details</h3>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="toggleMaximize()"><i class="fas fa-expand"></i></button>
+            <button class="btn btn-secondary" onclick="closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+    <div class="modal-body">
+        <div
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+            <div>
+                <span class="form-label">Source Connection</span>
+                <div id="modal-source-conn" style="font-weight: 500;"></div>
+            </div>
+            <div>
+                <span class="form-label">Target Connection</span>
+                <div id="modal-target-conn" style="font-weight: 500;"></div>
+            </div>
+        </div>
+
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);">
+            <h4 style="margin: 0;">Column Mappings</h4>
+            <input type="text" id="column-search" class="form-input"
+                style="width: 250px; padding: 4px 8px; font-size: 13px;"
+                placeholder="Search Physical or Logical Name..." onkeyup="filterColumns()">
+        </div>
+        <div class="column-grid" id="column-grid">
+            <!-- Headers -->
+            <div class="column-header">Ord</div>
+            <div class="column-header">Physical Name</div>
+            <div class="column-header">Logical Name</div>
+            <div class="column-header">Type</div>
+            <div class="column-header" title="Nullable">Null</div>
+            <div class="column-header" title="Primary Key">PK</div>
+            <div class="column-header" title="Extraction Condition">Ext</div>
+            <div class="column-header" title="Partition Key">Part</div>
+            <div class="column-header">Trans Rule</div>
+            <div class="column-header">Target Col</div>
+            <div class="column-header">Target Type</div>
+            <div class="column-header"><i class="fas fa-trash"></i></div>
+            <!-- Rows will be populated by JS -->
+        </div>
+        <div style="margin-top: 10px;">
+            <button class="btn btn-secondary" onclick="addNewColumn()"><i class="fas fa-plus"></i> Add Column</button>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal()" style="margin-right: 8px;">Cancel</button>
+        <button class="btn btn-primary" onclick="saveMappingChanges()">Save Changes</button>
+    </div>
+</div>
+
+<!-- DDL Modal -->
+<div id="ddl-modal-overlay" class="modal-overlay"></div>
+<div id="ddl-modal" class="modal-container" style="max-height: 600px; max-width: 800px;">
+    <div class="modal-header">
+        <h3 style="margin: 0; font-weight: 600;">Generated DDL</h3>
+        <button class="btn btn-secondary" onclick="closeDdlModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="background: #1e1e1e; color: #d4d4d4;">
+        <pre id="ddl-content"
+            style="margin: 0; white-space: pre-wrap; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px;"></pre>
+    </div>
+    <div class="modal-footer" style="justify-content: space-between;">
+        <button class="btn btn-secondary" onclick="copyToClipboard()">
+            <i class="fas fa-copy"></i> Copy to Clipboard
+        </button>
+        <button class="btn btn-secondary" onclick="closeDdlModal()">Close</button>
+    </div>
+</div>
+
+<!-- DAG Generation Modal -->
+<div id="dag-modal-overlay" class="modal-overlay"></div>
+<div id="dag-modal" class="modal-container"
+    style="max-width: 800px; width: 90%; height: auto; max-height: 90vh; display: none; flex-direction: column;">
+    <div class="modal-header">
+        <h3 style="margin: 0; font-weight: 600;">Generate DAGs</h3>
+        <button class="btn btn-secondary" onclick="closeDagModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">
+            Select a template to generate DAGs for the selected mappings.
+        </p>
+        <div class="form-group">
+            <label class="form-label">DAG Template</label>
+            <select class="form-select" id="dag-template-select">
+                <option value="" disabled selected>Select a template...</option>
+                <!-- Templates will be loaded here -->
+            </select>
+        </div>
+    </div>
+    <div class="modal-footer" style="flex-direction: column; align-items: stretch;">
+        <div id="dag-preview-area"
+            style="width: 100%; margin-bottom: 15px; display: none; text-align: left; flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+            <h4
+                style="margin-bottom: 10px; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between;">
+                <span>Preview SQL</span>
+                <span style="font-size: 12px; font-weight: normal; color: var(--text-secondary);">Generated based on
+                    selected mappings</span>
+            </h4>
+            <div id="preview-content"
+                style="background: transparent; padding: 0; font-family: monospace; font-size: 13px; overflow-y: auto; max-height: 400px; padding-right: 5px;">
+            </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+            <div id="dag-result-message" class="alert"
+                style="display: none; margin: 0; flex: 1; text-align: left; margin-right: 10px;"></div>
+            <button class="btn btn-secondary" onclick="previewSql()"><i class="fas fa-eye"></i> Preview SQL</button>
+            <button class="btn btn-secondary" onclick="closeDagModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="generateDags(this)">Generate</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const modalOverlay = document.getElementById('modal-overlay');
+    const editModal = document.getElementById('edit-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalSourceConn = document.getElementById('modal-source-conn');
+    const modalTargetConn = document.getElementById('modal-target-conn');
+    const columnGrid = document.getElementById('column-grid');
+    const columnSearch = document.getElementById('column-search');
+
+    // Mapping List Search
+    const mappingSearch = document.getElementById('mapping-search');
+    if (mappingSearch) {
+        mappingSearch.addEventListener('input', function () {
+            const filter = this.value.toUpperCase();
+            const table = document.querySelector('.data-table');
+            const rows = table.getElementsByTagName('tr');
+
+            // Start from 1 to skip header
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                // Skip "No mappings found" row if it exists (usually has colspan)
+                if (row.cells.length < 2) continue;
+
+                // Column 1 is Mapping Name (Source Table)
+                const mappingNameCell = row.cells[1];
+                const targetTableCell = row.cells[4]; // Also search target table
+
+                if (mappingNameCell || targetTableCell) {
+                    const mappingName = mappingNameCell ? mappingNameCell.textContent || mappingNameCell.innerText : "";
+                    const targetName = targetTableCell ? targetTableCell.textContent || targetTableCell.innerText : "";
+
+                    if (mappingName.toUpperCase().indexOf(filter) > -1 || targetName.toUpperCase().indexOf(filter) > -1) {
+                        row.style.display = "";
+                    } else {
+                        row.style.display = "none";
+                    }
+                }
+            }
+        });
+    }
+
+    let currentMappingId = null;
+
+    function openModal(id) {
+        currentMappingId = id;
+        fetch(`/admin/mappings/api/detail/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                modalTitle.innerText = `${data.source_table} -> ${data.target_table}`;
+                modalSourceConn.innerText = data.source_conn;
+                modalTargetConn.innerText = data.target_conn;
+                columnSearch.value = ''; // Reset search
+
+                // Clear existing rows
+                const rows = columnGrid.querySelectorAll('.column-row');
+                rows.forEach(row => row.remove());
+
+                data.columns.sort((a, b) => a.column_order - b.column_order).forEach(col => {
+                    renderColumnRow(col);
+                });
+
+                modalOverlay.style.display = 'block';
+                editModal.style.display = 'flex';
+            });
+    }
+
+    function renderColumnRow(col = {}) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'column-row';
+        rowDiv.style.display = 'contents';
+        rowDiv.dataset.id = col.id || ''; // Empty for new cols
+
+        // Order
+        addInputCell(rowDiv, col.column_order || '', 'number');
+        // Physical Name
+        addInputCell(rowDiv, col.source_column || '');
+        // Logical Name
+        addInputCell(rowDiv, col.target_logical_name || '');
+        // Type
+        addInputCell(rowDiv, col.source_type || '');
+        // Null
+        addCheckboxCell(rowDiv, col.is_nullable !== false); // Default true
+        // PK
+        addCheckboxCell(rowDiv, col.is_pk || false);
+        // Extraction Condition
+        addCheckboxCell(rowDiv, col.is_extraction_condition || false);
+        // Partition
+        addCheckboxCell(rowDiv, col.is_partition || false);
+        // Trans Rule
+        addInputCell(rowDiv, col.trans_rule || '');
+        // Target Column
+        addInputCell(rowDiv, col.target_column || '');
+        // Target Type
+        addInputCell(rowDiv, col.target_type || '');
+        // Delete Action
+        addDeleteCell(rowDiv);
+
+        columnGrid.appendChild(rowDiv);
+    }
+
+    function addNewColumn() {
+        // Calculate next order
+        const rows = columnGrid.querySelectorAll('.column-row');
+        let nextOrder = 1;
+        if (rows.length > 0) {
+            const lastRow = rows[rows.length - 1];
+            const orderInput = lastRow.children[0].querySelector('input');
+            if (orderInput && orderInput.value) {
+                nextOrder = parseInt(orderInput.value) + 1;
+            }
+        }
+        renderColumnRow({ column_order: nextOrder });
+    }
+
+    function saveMappingChanges() {
+        if (!currentMappingId) return;
+
+        const rows = columnGrid.querySelectorAll('.column-row');
+        const columnsData = [];
+
+        rows.forEach(row => {
+            const inputs = row.querySelectorAll('input');
+            // inputs order: order, source_col, logical_name, source_type, null(cb), pk(cb), ext(cb), part(cb), trans, target_col, target_type
+            // Note: querySelectorAll returns in document order.
+
+            columnsData.push({
+                id: row.dataset.id || null, // null for new columns to signal creation
+                column_order: parseInt(inputs[0].value) || 0,
+                source_column: inputs[1].value,
+                target_logical_name: inputs[2].value,
+                source_type: inputs[3].value,
+                is_nullable: inputs[4].checked,
+                is_pk: inputs[5].checked,
+                is_extraction_condition: inputs[6].checked,
+                is_partition: inputs[7].checked,
+                trans_rule: inputs[8].value,
+                target_column: inputs[9].value,
+                target_type: inputs[10].value
+            });
+        });
+
+        const btn = document.querySelector('#edit-modal .btn-primary');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        btn.disabled = true;
+
+        fetch(`/api/mappings/${currentMappingId}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ columns: columnsData })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Mapping updated successfully!');
+                    closeModal();
+                    // Optionally reload table or partial update
+                } else {
+                    alert('Error saving mapping: ' + data.message);
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                alert('An error occurred while saving.');
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    }
+
+    function addInputCell(parent, value, type = 'text') {
+        const div = document.createElement('div');
+        div.className = 'column-cell';
+        const input = document.createElement('input');
+        input.type = type;
+        input.value = value;
+        div.appendChild(input);
+        parent.appendChild(div);
+    }
+
+    function addCheckboxCell(parent, isChecked) {
+        const div = document.createElement('div');
+        div.className = 'column-cell';
+        div.style.justifyContent = 'center';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = isChecked;
+        input.style.width = 'auto'; // Reset width for checkbox
+        div.appendChild(input);
+        parent.appendChild(div);
+    }
+
+    function addDeleteCell(parent) {
+        const div = document.createElement('div');
+        div.className = 'column-cell';
+        div.style.justifyContent = 'center';
+        div.style.cursor = 'pointer';
+        div.innerHTML = '<i class="fas fa-times" style="color: var(--error-color);"></i>';
+        div.onclick = function () {
+            parent.remove();
+        };
+        parent.appendChild(div);
+    }
+
+    function filterColumns() {
+        const filter = columnSearch.value.toUpperCase();
+        const rows = columnGrid.querySelectorAll('.column-row');
+
+        rows.forEach(row => {
+            const physicalNameInput = row.children[1].querySelector('input');
+            const logicalNameInput = row.children[2].querySelector('input');
+
+            const physicalName = physicalNameInput ? physicalNameInput.value.toUpperCase() : '';
+            const logicalName = logicalNameInput ? logicalNameInput.value.toUpperCase() : '';
+
+            if (physicalName.indexOf(filter) > -1 || logicalName.indexOf(filter) > -1) {
+                row.style.display = 'contents';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+
+
+    function closeModal() {
+        modalOverlay.style.display = 'none';
+        editModal.style.display = 'none';
+        editModal.classList.remove('maximized');
+    }
+
+    function toggleMaximize() {
+        editModal.classList.toggle('maximized');
+    }
+
+    function deleteMapping(id) {
+        if (confirm('Are you sure you want to delete this mapping?')) {
+            fetch(`/admin/mappings/delete/${id}`, {
+                method: 'POST'
+            })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        alert('Failed to delete mapping.');
+                    }
+                })
+                .catch(error => {
+                    alert('An error occurred during deletion.');
+                    console.error('Error:', error);
+                });
+        }
+    }
+
+    function toggleSelectAll() {
+        const selectAll = document.getElementById('selectAll');
+        const checkboxes = document.querySelectorAll('.mapping-checkbox');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    }
+
+    function downloadSelected(btn) {
+        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+        const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (ids.length === 0) {
+            alert('Please select at least one mapping to download.');
+            return;
+        }
+
+        downloadExcel(ids, btn);
+    }
+
+    function downloadSingle(id, btn) {
+        downloadExcel([id], btn);
+    }
+
+    function downloadExcel(ids, buttonElement) {
+        const originalContent = buttonElement ? buttonElement.innerHTML : '';
+        if (buttonElement) {
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+        }
+
+        fetch('/admin/mappings/download_excel', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ mapping_ids: ids })
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(err => { throw new Error(err.message || 'Download failed'); });
+                }
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'mapping_definitions.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                alert('Error downloading Excel: ' + error.message);
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.innerHTML = originalContent;
+                }
+            });
+    }
+
+    // DDL Modal Logic
+    const ddlModalOverlay = document.getElementById('ddl-modal-overlay');
+    const ddlModal = document.getElementById('ddl-modal');
+    const ddlContent = document.getElementById('ddl-content');
+
+    function showDdl(id, btn) {
+        const originalIcon = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        fetch(`/admin/mappings/generate_ddl/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    ddlContent.innerText = data.ddl;
+                    ddlModalOverlay.style.display = 'block';
+                    ddlModal.style.display = 'flex';
+                } else {
+                    alert('Error generating DDL: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while generating DDL.');
+            })
+            .finally(() => {
+                btn.innerHTML = originalIcon;
+                btn.disabled = false;
+            });
+    }
+
+    function closeDdlModal() {
+        ddlModalOverlay.style.display = 'none';
+        ddlModal.style.display = 'none';
+    }
+
+    function copyToClipboard() {
+        const text = ddlContent.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            alert('DDL copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert('Failed to copy to clipboard.');
+        });
+    }
+
+    // DAG Generation Logic
+    const dagModalOverlay = document.getElementById('dag-modal-overlay');
+    const dagModal = document.getElementById('dag-modal');
+    const dagTemplateSelect = document.getElementById('dag-template-select');
+    const dagResult = document.getElementById('dag-result-message'); // Changed from dag-generation-result
+
+    function openGenerateModal() {
+        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+        if (checkboxes.length === 0) {
+            alert('Please select at least one mapping to generate DAGs.');
+            return;
+        }
+
+        // Load templates
+        fetch('/api/templates')
+            .then(response => response.json())
+            .then(templates => {
+                dagTemplateSelect.innerHTML = '<option value="" disabled selected>Select a template...</option>';
+                templates.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.name;
+                    dagTemplateSelect.appendChild(option);
+                });
+
+                dagResult.style.display = 'none';
+                dagResult.innerHTML = '';
+                document.getElementById('dag-preview-area').style.display = 'none'; // Hide preview area on open
+
+                dagModalOverlay.style.display = 'block';
+                dagModal.style.display = 'flex';
+            })
+            .catch(err => {
+                console.error('Error loading templates:', err);
+                alert('Failed to load templates.');
+            });
+    }
+
+    function closeDagModal() {
+        dagModalOverlay.style.display = 'none';
+        dagModal.style.display = 'none';
+    }
+
+    function generateDags(btn) {
+        const templateId = dagTemplateSelect.value;
+        if (!templateId) {
+            alert('Please select a template.');
+            return;
+        }
+
+        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
+        const mappingIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        btn.disabled = true;
+
+        fetch('/api/dags/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                template_id: templateId,
+                mapping_ids: mappingIds
+            })
+        })
+            .then(async response => {
+                const isJson = response.headers.get('content-type')?.includes('application/json');
+                const data = isJson ? await response.json() : null;
+
+                if (!response.ok) {
+                    // Get error message from JSON or text
+                    const error = (data && data.message) || await response.text() || response.statusText;
+                    return Promise.reject(error);
+                }
+                return data;
+            })
+            .then(data => {
+                dagResult.style.display = 'block';
+                if (data.status === 'success') {
+                    dagResult.className = 'alert alert-success'; // Add success class
+                    // ... success logic remains same
+                    let fileList = '';
+                    if (data.generated_files && data.generated_files.length > 0) {
+                        fileList = '<ul style="margin-top:8px; font-size:13px;">' +
+                            data.generated_files.map(f => `<li>${f}</li>`).join('') +
+                            '</ul>';
+                    }
+                    dagResult.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message} ${fileList}`;
+                } else {
+                    dagResult.className = 'alert alert-error'; // Add error class
+                    dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${data.message}`;
+                }
+            })
+            .catch(err => {
+                console.error('Error generating DAGs:', err);
+                dagResult.style.display = 'block';
+                dagResult.className = 'alert alert-error';
+                // Display the error object if it's a string, or message property
+                const msg = (typeof err === 'string') ? err : (err.message || 'Unknown Error');
+                dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Unexpected Error: ${msg}`;
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    }
+
+    function previewSql() {
+        const selectedIds = Array.from(document.querySelectorAll('.mapping-checkbox:checked')).map(cb => cb.value);
+        const previewArea = document.getElementById('dag-preview-area');
+        const previewContent = document.getElementById('preview-content');
+
+        if (selectedIds.length === 0) {
+            alert('Please select at least one mapping to preview.');
+            return;
+        }
+
+        previewContent.innerHTML = 'Loading preview...';
+        previewArea.style.display = 'block';
+
+        fetch('/api/dags/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mapping_ids: selectedIds })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    let html = '';
+                    data.previews.forEach((p, index) => {
+                        const sqlId = `sql-preview-${index}`;
+                        html += `
+                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); margin-bottom: 15px; overflow: hidden;">
+                            <div style="padding: 8px 12px; background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <span style="color: var(--primary-color); margin-right: 8px;">#${index + 1}</span>
+                                    ${p.mapping_name}
+                                </div>
+                                <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="copyPreviewSql('${sqlId}')">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                            <div style="padding: 0;">
+                                <pre id="${sqlId}" style="margin: 0; padding: 12px; background: #1e1e1e; color: #d4d4d4; white-space: pre-wrap; word-break: break-all; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5;">${p.source_sql}</pre>
+                            </div>
+                        </div>`;
+                    });
+                    previewContent.innerHTML = html;
+                    previewArea.style.display = 'flex'; // Use flex to handle layout correctly
+                } else {
+                    previewContent.innerHTML = `<span style="color: var(--error-color);">Error: ${data.message}</span>`;
+                }
+            })
+            .catch(err => {
+                console.error('Error previewing SQL:', err);
+                previewContent.innerHTML = `<span style="color: var(--error-color);">Unexpected Error: ${err.message}</span>`;
+            });
+    }
+
+    function copyPreviewSql(elementId) {
+        const text = document.getElementById(elementId).textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            // Optional: Show a small toast or change button text temporarily
+            alert('SQL copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy SQL.');
+        });
+    }
+</script>
+{% endblock %}
+```

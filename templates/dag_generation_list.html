@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - DAG List{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title">Generated DAGs</h1>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-danger" id="bulkDeleteBtn" style="display: none;" onclick="bulkDeleteDags()">
+            <i class="fas fa-trash-alt"></i>
+            <span class="btn-icon-right">Delete Selected</span>
+        </button>
+        <button class="btn btn-primary">
+            <i class="fas fa-sync"></i>
+            <span class="btn-icon-right">Refresh Status</span>
+        </button>
+    </div>
+</header>
+
+<div class="content-body">
+    <!-- Search/Filter Area -->
+    <div class="card"
+        style="display: flex; gap: var(--spacing-md); align-items: center; padding: var(--spacing-sm) var(--spacing-md);">
+        <div style="flex: 1;">
+            <input type="text" class="form-input" placeholder="Search DAGs...">
+        </div>
+        <div>
+            <select class="form-select">
+                <option>All Statuses</option>
+                <option>Deployed</option>
+                <option>Draft</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAllCheckbox"
+                            onchange="toggleSelectAll()"></th>
+                    <th>DAG ID</th>
+                    <th>Description</th>
+                    <th>Template</th>
+                    <th>Created At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dag in dags %}
+                <tr>
+                    <td style="text-align: center;"><input type="checkbox" class="dag-checkbox" value="{{ dag.id }}"
+                            onchange="updateBulkDeleteButton()"></td>
+                    <td style="font-family: monospace;">{{ dag.filename }}</td>
+                    <td>{{ dag.mapping.source_table }} -> {{ dag.mapping.target_table }}</td>
+                    <td>{{ dag.template.name if dag.template else 'Deleted Template' }}</td>
+                    <td>{{ dag.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td><span class="status-badge status-{{ 'active' if dag.status == 'Deployed' else 'inactive' }}">{{
+                            dag.status }}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-info" style="padding: 4px 8px;" title="View Code"
+                            onclick="viewDagCode({{ dag.id }})"><i class="fas fa-code"></i></button>
+                        <button class="btn btn-sm btn-success" style="padding: 4px 8px;" title="Download"
+                            onclick="downloadDag({{ dag.id }})"><i class="fas fa-download"></i></button>
+                        <button class="btn btn-sm btn-danger" style="padding: 4px 8px;" title="Delete"
+                            onclick="deleteDag({{ dag.id }})"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; color: var(--text-secondary);">No generated DAGs found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- View Code Modal -->
+<div id="codeModal" class="modal"
+    style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content"
+        style="background-color: #1e1e1e; margin: 5% auto; padding: 20px; border: 1px solid #444; width: 80%; max-width: 900px; border-radius: 8px; color: #e0e0e0;">
+        <span class="close" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;"
+            onclick="closeCodeModal()">&times;</span>
+        <h2 id="codeModalTitle" style="margin-top: 0;">DAG Code</h2>
+        <div style="background-color: #2d2d2d; padding: 15px; border-radius: 4px; overflow: auto; max-height: 600px;">
+            <pre><code id="codeModalContent" style="color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace;">Loading...</code></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+    function viewDagCode(id) {
+        console.log('viewDagCode v2 called with ID:', id, 'Type:', typeof id);
+        document.getElementById('codeModal').style.display = 'block';
+        document.getElementById('codeModalContent').textContent = 'Loading...';
+        document.getElementById('codeModalTitle').textContent = 'Loading...';
+
+        fetch(`/api/dags/${id}/code`)
+            .then(async response => {
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.message || 'Error fetching code'); });
+                    }
+                    return response.json();
+                } else {
+                    const text = await response.text();
+                    console.error("Received non-JSON response:", text);
+                    if (response.status === 404) {
+                        throw new Error('DAG file not found (404). Server returned HTML.');
+                    }
+                    if (response.status === 500) {
+                        throw new Error('Internal Server Error (500). Server returned HTML.');
+                    }
+                    // Try to extract title if HTML
+                    const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+                    const errorTitle = titleMatch ? titleMatch[1] : 'Unknown Error';
+                    throw new Error(`Server returned HTML error: ${errorTitle}. Check console for details.`);
+                }
+            })
+            .then(data => {
+                document.getElementById('codeModalTitle').textContent = data.filename;
+                document.getElementById('codeModalContent').textContent = data.code;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('codeModalTitle').textContent = 'Error';
+                document.getElementById('codeModalContent').textContent = error.message || 'An error occurred while fetching the code.';
+            });
+    }
+
+    function closeCodeModal() {
+        document.getElementById('codeModal').style.display = 'none';
+    }
+
+    // Close modal when clicking outside of it
+    window.onclick = function (event) {
+        var modal = document.getElementById('codeModal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+
+    function downloadDag(id) {
+        // For download, we can't easily capture the error without AJAX, 
+        // but typically browser handles 404 by showing the error page.
+        // We could fetch HEAD first to check existence if needed, but keeping it simple for now.
+        window.location.href = `/api/dags/${id}/download`;
+    }
+
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const checkboxes = document.querySelectorAll('.dag-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = selectAllCheckbox.checked;
+        });
+        updateBulkDeleteButton();
+    }
+
+    function updateBulkDeleteButton() {
+        const checkboxes = document.querySelectorAll('.dag-checkbox:checked');
+        const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        if (checkboxes.length > 0) {
+            bulkDeleteBtn.style.display = 'inline-flex';
+            bulkDeleteBtn.querySelector('span').textContent = `Delete Selected (${checkboxes.length})`;
+        } else {
+            bulkDeleteBtn.style.display = 'none';
+        }
+
+        // Update select all checkbox state if needed
+        const allCheckboxes = document.querySelectorAll('.dag-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if (checkboxes.length === allCheckboxes.length && allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkboxes.length > 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        }
+    }
+
+    function bulkDeleteDags() {
+        const checkboxes = document.querySelectorAll('.dag-checkbox:checked');
+        if (checkboxes.length === 0) return;
+
+        if (confirm(`Are you sure you want to delete ${checkboxes.length} selected DAGs? This action cannot be undone.`)) {
+            const dagIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            fetch('/api/dags/bulk_delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ dag_ids: dagIds })
+            })
+                .then(response => {
+                    if (!response.ok && response.status !== 207) {
+                        return response.json().then(err => { throw new Error(err.message || 'Error deleting DAGs'); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success' || data.status === 'partial_success') {
+                        if (data.status === 'partial_success') {
+                            alert(data.message);
+                        }
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'An error occurred while deleting DAGs.');
+                });
+        }
+    }
+
+    function deleteDag(id) {
+        if (confirm('Are you sure you want to delete this DAG? This action cannot be undone.')) {
+            fetch(`/api/dags/${id}`, {
+                method: 'DELETE'
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.message || 'Error deleting DAG'); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'An error occurred while deleting the DAG.');
+                });
+        }
+    }
+</script>
+{% endblock %}

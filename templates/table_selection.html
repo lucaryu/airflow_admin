@@ -1,0 +1,267 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - Table Selection{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div style="display: flex; align-items: center;">
+        <a href="{{ url_for('mappings.index') }}" class="btn btn-secondary" style="margin-right: 16px;">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="page-title">New Mapping: Select Tables</h1>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="generateMapping()">Generate Mapping <i
+                class="fas fa-arrow-right btn-icon-right"></i></button>
+    </div>
+</header>
+
+<div class="content-body">
+    <!-- Connection Selection -->
+    <div class="card" style="margin-bottom: var(--spacing-md);">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
+            <div class="form-group">
+                <label class="form-label">Source Connection</label>
+                <select id="source-conn" class="form-select">
+                    <option value="">Select Connection...</option>
+                    {% for conn in connections %}
+                    <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target Connection</label>
+                <select id="target-conn" class="form-select">
+                    <option value="">Select Connection...</option>
+                    {% for conn in connections %}
+                    <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Selection (Dual List) -->
+    <div style="display: flex; gap: var(--spacing-md); height: 500px;">
+        <!-- Available Tables -->
+        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+            <h3 style="margin-bottom: var(--spacing-sm);">Available Tables</h3>
+            <input type="text" id="table-search" class="form-input" placeholder="Filter tables..."
+                style="margin-bottom: var(--spacing-sm);">
+
+            <div id="available-tables"
+                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
+                <div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection
+                    to view tables.</div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; flex-direction: column; justify-content: center; gap: var(--spacing-sm);">
+            <button class="btn btn-secondary" onclick="moveRight()"><i class="fas fa-angle-right"></i></button>
+            <button class="btn btn-secondary" onclick="moveLeft()"><i class="fas fa-angle-left"></i></button>
+            <button class="btn btn-secondary" onclick="moveAllRight()"><i
+                    class="fas fa-angle-double-right"></i></button>
+            <button class="btn btn-secondary" onclick="moveAllLeft()"><i class="fas fa-angle-double-left"></i></button>
+        </div>
+
+        <!-- Selected Tables -->
+        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+            <h3 style="margin-bottom: var(--spacing-sm);">Selected Tables (Target)</h3>
+            <div id="selected-tables"
+                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
+                <!-- Selected tables will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const sourceSelect = document.getElementById('source-conn');
+    const availableContainer = document.getElementById('available-tables');
+    const selectedContainer = document.getElementById('selected-tables');
+
+    sourceSelect.addEventListener('change', function () {
+        const connId = this.value;
+        if (connId) {
+            fetch(`/admin/mappings/fetch_tables/${connId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'error') {
+                        alert('Error fetching tables: ' + data.message);
+                        return;
+                    }
+                    availableContainer.innerHTML = '';
+                    if (data.tables && data.tables.length > 0) {
+                        data.tables.forEach(table => {
+                            const div = document.createElement('div');
+                            div.style.padding = '8px';
+                            div.style.display = 'flex';
+                            div.style.alignItems = 'center';
+                            div.innerHTML = `
+                                    <input type="checkbox" value="${table}" style="margin-right: 8px;">
+                                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                                `;
+                            availableContainer.appendChild(div);
+                        });
+                    } else {
+                        availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">No tables found.</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while fetching tables. Please check the console for details.');
+                });
+        } else {
+            availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection to view tables.</div>';
+        }
+    });
+
+    // Table Search Logic
+    const searchInput = document.getElementById('table-search');
+    searchInput.addEventListener('input', function () {
+        const filter = this.value.toLowerCase();
+        const items = availableContainer.querySelectorAll('div');
+
+        items.forEach(item => {
+            // Skip the "No tables found" or "Select connection" message if it exists
+            if (item.querySelector('input[type="checkbox"]')) {
+                const text = item.textContent.trim().toLowerCase();
+                if (text.includes(filter)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            }
+        });
+    });
+
+    function moveRight() {
+        const checkboxes = availableContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkboxes.forEach(cb => {
+            const table = cb.value;
+            const div = cb.parentElement;
+
+            // Check if already selected
+            if (!selectedContainer.querySelector(`input[value="${table}"]`)) {
+                const newDiv = div.cloneNode(true);
+                newDiv.querySelector('input').checked = false;
+                // Add mapping hint (optional)
+                const hint = document.createElement('span');
+                hint.style.fontSize = '12px';
+                hint.style.color = '#aaa';
+                hint.style.marginLeft = 'auto';
+                hint.innerText = ' -> ' + table.split('.').pop().toLowerCase();
+                newDiv.appendChild(hint);
+
+                selectedContainer.appendChild(newDiv);
+            }
+            div.remove();
+        });
+    }
+
+    function moveLeft() {
+        const checkboxes = selectedContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkboxes.forEach(cb => {
+            const table = cb.value;
+            const div = cb.parentElement;
+
+            // Restore logic: simplified, just add back to list
+            const newDiv = document.createElement('div');
+            newDiv.style.padding = '8px';
+            newDiv.style.display = 'flex';
+            newDiv.style.alignItems = 'center';
+            newDiv.innerHTML = `
+                    <input type="checkbox" value="${table}" style="margin-right: 8px;">
+                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                `;
+            availableContainer.appendChild(newDiv);
+            div.remove();
+        });
+    }
+
+    function moveAllRight() {
+        // Move all visible items in availableContainer
+        const items = availableContainer.querySelectorAll('div');
+        items.forEach(div => {
+            if (div.style.display !== 'none' && div.querySelector('input[type="checkbox"]')) {
+                const cb = div.querySelector('input[type="checkbox"]');
+                const table = cb.value;
+
+                if (!selectedContainer.querySelector(`input[value="${table}"]`)) {
+                    const newDiv = div.cloneNode(true);
+                    newDiv.querySelector('input').checked = false;
+                    const hint = document.createElement('span');
+                    hint.style.fontSize = '12px';
+                    hint.style.color = '#aaa';
+                    hint.style.marginLeft = 'auto';
+                    hint.innerText = ' -> ' + table.split('.').pop().toLowerCase();
+                    newDiv.appendChild(hint);
+                    selectedContainer.appendChild(newDiv);
+                }
+                div.remove();
+            }
+        });
+    }
+
+    function moveAllLeft() {
+        const items = selectedContainer.querySelectorAll('div');
+        items.forEach(div => {
+            if (div.querySelector('input[type="checkbox"]')) {
+                const cb = div.querySelector('input[type="checkbox"]');
+                const table = cb.value;
+
+                const newDiv = document.createElement('div');
+                newDiv.style.padding = '8px';
+                newDiv.style.display = 'flex';
+                newDiv.style.alignItems = 'center';
+                newDiv.innerHTML = `
+                        <input type="checkbox" value="${table}" style="margin-right: 8px;">
+                        <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                    `;
+                availableContainer.appendChild(newDiv);
+                div.remove();
+            }
+        });
+    }
+
+    function generateMapping() {
+        const sourceConnId = document.getElementById('source-conn').value;
+        const targetConnId = document.getElementById('target-conn').value;
+        const selectedInputs = selectedContainer.querySelectorAll('input[type="checkbox"]');
+
+        if (!sourceConnId || !targetConnId) {
+            alert('Please select both Source and Target connections.');
+            return;
+        }
+
+        if (selectedInputs.length === 0) {
+            alert('Please move at least one table to the Selected Tables list.');
+            return;
+        }
+
+        const tables = Array.from(selectedInputs).map(input => input.value);
+
+        fetch('/admin/mappings/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_conn_id: sourceConnId,
+                target_conn_id: targetConnId,
+                tables: tables
+            })
+        })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'success') {
+                    alert(result.message);
+                    window.location.href = "{{ url_for('mappings.index') }}";
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            });
+    }
+</script>
+{% endblock %}
