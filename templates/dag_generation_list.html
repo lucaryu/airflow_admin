@@ -2,7 +2,7 @@
 
 {% block title %}Toy Airflow - DAG List{% endblock %}
 
-{% block extra_head %}
+{% block styles %}
 <!-- Prism.js for Syntax Highlighting -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" rel="stylesheet" />
 <style>
@@ -16,32 +16,33 @@
         height: 100vh !important;
         margin: 0 !important;
         border-radius: 0 !important;
-        z-index: 1001;
+        z-index: 9999 !important;
         display: flex !important;
         flex-direction: column !important;
     }
 
-    .modal-content.maximized .modal-body-container {
-        max-height: calc(100vh - 80px) !important;
-        height: 100% !important;
+    .maximized .modal-body-container {
+        max-height: none !important;
+        height: calc(100vh - 70px) !important;
         flex: 1 !important;
     }
 
     .modal-header-actions {
         display: flex;
-        gap: 15px;
+        gap: 20px !important;
         align-items: center;
+        margin-right: 5px;
     }
 
     .action-icon {
         cursor: pointer;
-        padding: 4px;
+        padding: 6px;
         color: #aaa;
         transition: all 0.2s;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 18px;
+        font-size: 20px !important;
     }
 
     .action-icon:hover {
@@ -56,26 +57,32 @@
 
     .copy-btn {
         position: absolute;
-        top: 10px;
-        right: 10px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        top: 15px;
+        right: 20px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
         color: #fff;
-        padding: 4px 8px;
+        padding: 5px 12px;
         border-radius: 4px;
-        font-size: 12px;
+        font-size: 13px;
         cursor: pointer;
-        z-index: 10;
+        z-index: 100;
+        transition: all 0.2s;
     }
 
     .copy-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.25);
+        border-color: rgba(255, 255, 255, 0.5);
     }
 
     /* Prism Fixes */
     pre[class*="language-"] {
         margin: 0 !important;
         background: transparent !important;
+    }
+
+    code[class*="language-"] {
+        text-shadow: none !important;
     }
 </style>
 {% endblock %}
@@ -182,10 +189,6 @@
         </div>
     </div>
 </div>
-
-<!-- Prism.js JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
 
 <script>
     function viewDagCode(id) {
@@ -390,4 +393,10 @@
         }
     }
 </script>
+{% endblock %}
+
+{% block scripts %}
+<!-- Prism.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
 {% endblock %}
