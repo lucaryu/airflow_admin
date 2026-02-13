@@ -446,7 +446,7 @@
             // Note: querySelectorAll returns in document order.
 
             columnsData.push({
-                id: row.dataset.id || null, // null for new columns to signal creation
+                id: row.dataset.id ? parseInt(row.dataset.id) : null, // Integer ID or null for new columns
                 column_order: parseInt(inputs[0].value) || 0,
                 source_column: inputs[1].value,
                 target_logical_name: inputs[2].value,

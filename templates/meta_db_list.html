@@ -1,0 +1,360 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - Meta DB List{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title">Meta DB Settings</h1>
+    <a href="{{ url_for('meta_db_admin.create_view') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i>
+        <span class="btn-icon-right">New Meta DB</span>
+    </a>
+</header>
+
+<div class="content-body">
+    <!-- Search/Filter Area -->
+    <div class="card"
+        style="display: flex; gap: var(--spacing-md); align-items: center; padding: var(--spacing-sm) var(--spacing-md);">
+        <div style="flex: 1;">
+            <input type="text" class="form-input" id="searchInput" placeholder="Search meta databases..."
+                onkeyup="filterTable()">
+        </div>
+        <div>
+            <select class="form-select" id="typeFilter" onchange="filterTable()">
+                <option value="">All Types</option>
+                <option value="sqlite">SQLite</option>
+                <option value="oracle">Oracle</option>
+                <option value="postgres">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Meta DB Table -->
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <table class="data-table" id="metaDbTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Host</th>
+                    <th>Port</th>
+                    <th>Database</th>
+                    <th>Status</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for meta in meta_dbs %}
+                <tr data-type="{{ meta.db_type }}" data-name="{{ meta.name }}">
+                    <td><strong>{{ meta.name }}</strong></td>
+                    <td>
+                        {% if meta.db_type == 'sqlite' %}
+                        <i class="fas fa-database" style="color: #e8a317; margin-right: 8px;"></i> SQLite
+                        {% elif meta.db_type == 'oracle' %}
+                        <i class="fas fa-database" style="color: #ff0000; margin-right: 8px;"></i> Oracle
+                        {% elif meta.db_type == 'postgres' %}
+                        <i class="fas fa-database" style="color: #336791; margin-right: 8px;"></i> PostgreSQL
+                        {% elif meta.db_type == 'mysql' %}
+                        <i class="fas fa-database" style="color: #00758f; margin-right: 8px;"></i> MySQL
+                        {% else %}
+                        <i class="fas fa-database" style="margin-right: 8px;"></i> {{ meta.db_type }}
+                        {% endif %}
+                    </td>
+                    <td>{{ meta.host or '-' }}</td>
+                    <td>{{ meta.port or '-' }}</td>
+                    <td>{{ meta.database or '-' }}</td>
+                    <td>
+                        {% if meta.is_active %}
+                        <span class="status-badge status-active">Active</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if meta.is_active %}
+                        <i class="fas fa-star" style="color: #ffc107; font-size: 18px;" title="Active Meta DB"></i>
+                        {% else %}
+                        <button class="btn btn-secondary" style="padding: 4px 8px;" onclick="setActive({{ meta.id }})"
+                            title="Set as Active">
+                            <i class="far fa-star"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary" style="padding: 4px 8px;"
+                            onclick="testConnection({{ meta.id }})" title="Test Connection">
+                            <i class="fas fa-bolt"></i>
+                        </button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px;"
+                            onclick="openEditModal({{ meta.id }})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% if not meta.is_active %}
+                        <button class="btn btn-secondary"
+                            style="padding: 4px 8px; color: var(--error-color); border-color: var(--error-color);"
+                            onclick="deleteMetaDB({{ meta.id }})" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not meta_dbs %}
+    <div class="card" style="text-align: center; padding: var(--spacing-xl);">
+        <i class="fas fa-database" style="font-size: 48px; color: var(--text-secondary); margin-bottom: 16px;"></i>
+        <p style="color: var(--text-secondary);">등록된 Meta DB가 없습니다. 새 Meta DB를 추가하세요.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal"
+    style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(5px);">
+    <div class="modal-content"
+        style="background-color: var(--surface-color); margin: 5% auto; padding: 0; border: 1px solid var(--border-color); width: 600px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+        <div
+            style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 1.25rem;">Edit Meta DB</h2>
+            <span onclick="closeEditModal()"
+                style="color: var(--text-secondary); font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+        </div>
+
+        <form id="editForm" method="POST" style="padding: 20px;">
+            <div class="form-group">
+                <label class="form-label" for="modal-name">Name</label>
+                <input type="text" id="modal-name" name="name" class="form-input" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="modal-type">Database Type</label>
+                <select id="modal-type" name="db_type" class="form-select" required onchange="toggleModalFields()">
+                    <option value="">Select Type...</option>
+                    <option value="sqlite">SQLite</option>
+                    <option value="oracle">Oracle</option>
+                    <option value="postgres">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                </select>
+            </div>
+
+            <!-- SQLite specific field -->
+            <div id="modal-sqlite-fields" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="modal-db-path">Database File Path</label>
+                    <input type="text" id="modal-db-path" class="form-input" placeholder="e.g., toy_airflow.db">
+                    <p style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">
+                        <i class="fas fa-info-circle"></i> 상대 경로를 입력하면 instance 폴더 기준으로 적용됩니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Server-based DB fields -->
+            <div id="modal-server-fields" style="display: none;">
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label" for="modal-host">Host</label>
+                        <input type="text" id="modal-host" name="host" class="form-input" placeholder="127.0.0.1">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="modal-port">Port</label>
+                        <input type="number" id="modal-port" name="port" class="form-input" placeholder="5432">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="modal-database">Database Name / SID</label>
+                    <input type="text" id="modal-database" name="database" class="form-input" placeholder="my_database">
+                </div>
+
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="modal-user">Username</label>
+                        <input type="text" id="modal-user" name="username" class="form-input" placeholder="admin">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="modal-pass">Password</label>
+                        <input type="password" id="modal-pass" name="password" class="form-input"
+                            placeholder="••••••••">
+                        <div style="font-size: 0.8rem; color: #aaa; margin-top: 4px;">변경시에만 입력하세요</div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                style="margin-top: var(--spacing-xl); display: flex; justify-content: flex-end; gap: var(--spacing-md); border-top: 1px solid var(--border-color); padding-top: 20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Meta DB</button>
+            </div>
+
+            <!-- Hidden input for final database value -->
+            <input type="hidden" name="database" id="modal-final-database">
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filterTable() {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const typeVal = document.getElementById('typeFilter').value.toLowerCase();
+        const rows = document.querySelectorAll('#metaDbTable tbody tr');
+
+        rows.forEach(row => {
+            const name = (row.getAttribute('data-name') || '').toLowerCase();
+            const type = (row.getAttribute('data-type') || '').toLowerCase();
+            const matchSearch = !searchVal || name.includes(searchVal);
+            const matchType = !typeVal || type === typeVal;
+            row.style.display = (matchSearch && matchType) ? '' : 'none';
+        });
+    }
+
+    function openEditModal(id) {
+        const modal = document.getElementById('editModal');
+
+        // Fetch details
+        fetch(`/admin/meta_db_admin/api/detail/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                // Populate form
+                document.getElementById('editForm').action = `/admin/meta_db_admin/edit/${id}`;
+                document.getElementById('modal-name').value = data.name;
+                document.getElementById('modal-type').value = data.db_type;
+
+                if (data.db_type === 'sqlite') {
+                    document.getElementById('modal-db-path').value = data.database;
+                } else {
+                    document.getElementById('modal-host').value = data.host || '';
+                    document.getElementById('modal-port').value = data.port || '';
+                    document.getElementById('modal-database').value = data.database || '';
+                    document.getElementById('modal-user').value = data.username || '';
+                }
+                document.getElementById('modal-pass').value = ''; // Don't show password
+
+                toggleModalFields();
+                modal.style.display = 'block';
+            })
+            .catch(error => {
+                alert('정보를 불러오는데 실패했습니다.');
+                console.error(error);
+            });
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+        document.getElementById('editForm').reset();
+    }
+
+    function toggleModalFields() {
+        const dbType = document.getElementById('modal-type').value;
+        const sqliteFields = document.getElementById('modal-sqlite-fields');
+        const serverFields = document.getElementById('modal-server-fields');
+
+        if (dbType === 'sqlite') {
+            sqliteFields.style.display = 'block';
+            serverFields.style.display = 'none';
+        } else if (dbType) {
+            sqliteFields.style.display = 'none';
+            serverFields.style.display = 'block';
+            // Set default port based on DB type if empty
+            const portInput = document.getElementById('modal-port');
+            const defaults = { 'oracle': '1521', 'postgres': '5432', 'mysql': '3306' };
+            if (!portInput.value) {
+                portInput.placeholder = defaults[dbType] || '5432';
+            }
+        } else {
+            sqliteFields.style.display = 'none';
+            serverFields.style.display = 'none';
+        }
+    }
+
+    // Handle form submission for SQLite path
+    document.getElementById('editForm').addEventListener('submit', function (e) {
+        const dbType = document.getElementById('modal-type').value;
+        const finalDbInput = document.getElementById('modal-final-database');
+
+        if (dbType === 'sqlite') {
+            finalDbInput.value = document.getElementById('modal-db-path').value;
+            // Clear other database field to avoid conflict if any (though form structure helps avoid this)
+            document.getElementById('modal-database').removeAttribute('name');
+        } else {
+            finalDbInput.removeAttribute('name'); // Let the visible input handle it
+            document.getElementById('modal-database').setAttribute('name', 'database');
+        }
+    });
+
+    // Close modal on outside click
+    window.onclick = function (event) {
+        const modal = document.getElementById('editModal');
+        if (event.target == modal) {
+            closeEditModal();
+        }
+    }
+
+    function testConnection(id) {
+        const btn = event.currentTarget;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
+
+        fetch(`/admin/meta_db_admin/test/${id}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(result => {
+                if (result.status === 'success') {
+                    alert('✅ ' + result.message);
+                } else {
+                    alert('❌ ' + result.message);
+                }
+            })
+            .catch(error => {
+                alert('오류가 발생했습니다.');
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            });
+    }
+
+    function setActive(id) {
+        if (confirm('이 Meta DB를 활성 상태로 설정하시겠습니까?')) {
+            fetch(`/admin/meta_db_admin/set_active/${id}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        window.location.reload();
+                    } else {
+                        alert('❌ ' + result.message);
+                    }
+                })
+                .catch(error => {
+                    alert('오류가 발생했습니다.');
+                    console.error('Error:', error);
+                });
+        }
+    }
+
+    function deleteMetaDB(id) {
+        if (confirm('이 Meta DB를 삭제하시겠습니까?')) {
+            fetch(`/admin/meta_db_admin/delete/${id}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        window.location.reload();
+                    } else {
+                        alert('❌ ' + result.message);
+                    }
+                })
+                .catch(error => {
+                    alert('오류가 발생했습니다.');
+                    console.error('Error:', error);
+                });
+        }
+    }
+</script>
+{% endblock %}

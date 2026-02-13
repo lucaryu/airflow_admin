@@ -1,7 +1,7 @@
 from flask import Flask, redirect, url_for, render_template, request, jsonify, send_file
 from flask_admin import Admin, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
-from models import db, Connection, Mapping, MappingColumn, Template, GeneratedDAG
+from models import db, Connection, Mapping, MappingColumn, Template, GeneratedDAG, MetaDB
 import os
 from datetime import datetime
 
@@ -120,7 +120,7 @@ class ConnectionView(ModelView):
 # Setup Admin
 admin = Admin(app, name='Toy Airflow', url='/admin')
 
-from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG
+from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG, MetaDB
 
 class MappingView(BaseView):
     @expose('/')
@@ -196,6 +196,11 @@ class MappingView(BaseView):
         source_conn = Connection.query.get(source_conn_id)
         if not source_conn:
             return {'status': 'error', 'message': 'Source connection not found'}, 404
+
+        # Get target connection for type mapping
+        target_conn = Connection.query.get(target_conn_id)
+        if not target_conn:
+            return {'status': 'error', 'message': 'Target connection not found'}, 404
 
         def get_oracle_columns(conn_obj, owner, table_name):
             """Fetch real column metadata from Oracle DB."""
@@ -295,24 +300,57 @@ class MappingView(BaseView):
             
             return result
 
-        def format_target_type(oracle_type):
-            """Convert Oracle type to target DB type."""
-            t = oracle_type.upper()
-            if t.startswith('VARCHAR2') or t.startswith('NVARCHAR2'):
-                return oracle_type.replace('VARCHAR2', 'VARCHAR').replace('NVARCHAR2', 'VARCHAR')
-            elif t.startswith('NUMBER') or t == 'INTEGER':
-                return oracle_type
-            elif t.startswith('DECIMAL'):
-                return oracle_type
-            elif t == 'DATE':
-                return 'DATE'
-            elif t.startswith('TIMESTAMP'):
-                return 'TIMESTAMP'
-            elif t == 'TEXT':
-                return 'TEXT'
-            elif t.startswith('CHAR') or t.startswith('NCHAR'):
-                return oracle_type.replace('NCHAR', 'CHAR')
+        def format_target_type(oracle_type, target_db_type='postgres'):
+            """Convert Oracle type to target DB type based on target database."""
+            import re
+            t = oracle_type.upper().strip()
+            
+            if target_db_type == 'postgres':
+                # Oracle → PostgreSQL 타입 매핑
+                if 'NVARCHAR2' in t:
+                    # NVARCHAR2(n) → VARCHAR(n)
+                    m = re.search(r'\((\d+)\)', oracle_type)
+                    return f"VARCHAR({m.group(1)})" if m else 'VARCHAR(255)'
+                elif 'VARCHAR2' in t:
+                    # VARCHAR2(n) → VARCHAR(n)
+                    return oracle_type.upper().replace('VARCHAR2', 'VARCHAR')
+                elif t.startswith('NCHAR'):
+                    # NCHAR(n) → CHAR(n)
+                    return oracle_type.upper().replace('NCHAR', 'CHAR')
+                elif t.startswith('CHAR'):
+                    # CHAR(n) → 그대로
+                    return oracle_type.upper()
+                elif t.startswith('NUMBER'):
+                    # NUMBER(p,s) → NUMERIC(p,s), NUMBER → NUMERIC
+                    m = re.search(r'\((.+?)\)', oracle_type)
+                    return f"NUMERIC({m.group(1)})" if m else 'NUMERIC'
+                elif t == 'INTEGER':
+                    return 'INTEGER'
+                elif t.startswith('DECIMAL'):
+                    # DECIMAL(p,s) → NUMERIC(p,s)
+                    return oracle_type.upper().replace('DECIMAL', 'NUMERIC')
+                elif t in ('FLOAT', 'BINARY_FLOAT'):
+                    return 'REAL'
+                elif t == 'BINARY_DOUBLE':
+                    return 'DOUBLE PRECISION'
+                elif t == 'DATE':
+                    return 'TIMESTAMP'
+                elif t.startswith('TIMESTAMP'):
+                    return 'TIMESTAMP'
+                elif t in ('CLOB', 'NCLOB', 'LONG'):
+                    return 'TEXT'
+                elif t == 'BLOB':
+                    return 'BYTEA'
+                elif t.startswith('RAW') or t == 'LONG RAW':
+                    return 'BYTEA'
+                elif t == 'TEXT':
+                    return 'TEXT'
+                else:
+                    return oracle_type
             else:
+                # Oracle → Oracle (그대로 유지)
+                if t.startswith('NCHAR'):
+                    return oracle_type.replace('NCHAR', 'CHAR')
                 return oracle_type
 
         new_mappings = []
@@ -370,7 +408,7 @@ class MappingView(BaseView):
                         is_partition=col['is_partition'],
                         column_order=i + 1,
                         target_column=col_name.lower(),
-                        target_type=format_target_type(col['type']),
+                        target_type=format_target_type(col['type'], target_conn.conn_type.lower() if target_conn else 'postgres'),
                         target_logical_name=col['comment'] if col['comment'] else col_name.replace('_', ' ').capitalize(),
                         source_column_desc=col['comment'],
                     )
@@ -536,14 +574,43 @@ class MappingView(BaseView):
             pks = []
             
             for col in sorted(mapping.columns, key=lambda x: x.column_order):
-                # Basic type mapping (can be expanded)
-                # Ensure target_type is valid for Postgres
-                data_type = col.target_type
-                if 'VARCHAR2' in data_type:
-                    data_type = data_type.replace('VARCHAR2', 'VARCHAR')
-                elif 'NUMBER' in data_type:
+                # Oracle → PostgreSQL 타입 매핑
+                data_type = col.target_type.strip() if col.target_type else 'TEXT'
+                dt_upper = data_type.upper()
+
+                if 'NVARCHAR2' in dt_upper or 'NVARCHAR' in dt_upper:
+                    # NVARCHAR2(n) / NVARCHAR(n) → VARCHAR(n)
+                    import re
+                    m = re.search(r'\((\d+)\)', data_type)
+                    data_type = f"VARCHAR({m.group(1)})" if m else 'VARCHAR(255)'
+                elif 'VARCHAR2' in dt_upper or 'VARCHAR' in dt_upper:
+                    # VARCHAR2(n) → VARCHAR(n)  (이미 VARCHAR(n)이면 그대로)
+                    data_type = data_type.upper().replace('VARCHAR2', 'VARCHAR')
+                elif dt_upper.startswith('NCHAR'):
+                    # NCHAR(n) → CHAR(n)
+                    data_type = data_type.upper().replace('NCHAR', 'CHAR')
+                elif dt_upper.startswith('CHAR'):
+                    # CHAR(n) → CHAR(n)  (PostgreSQL 지원)
+                    pass
+                elif dt_upper.startswith('NUMBER') or dt_upper == 'INTEGER':
                     data_type = 'NUMERIC'
-                elif 'DATE' in data_type:
+                elif dt_upper.startswith('DECIMAL'):
+                    # DECIMAL(p,s) → NUMERIC(p,s)
+                    data_type = data_type.upper().replace('DECIMAL', 'NUMERIC')
+                elif dt_upper in ('FLOAT', 'BINARY_FLOAT'):
+                    data_type = 'REAL'
+                elif dt_upper == 'BINARY_DOUBLE':
+                    data_type = 'DOUBLE PRECISION'
+                elif dt_upper == 'DATE' or dt_upper.startswith('TIMESTAMP'):
+                    data_type = 'TIMESTAMP'
+                elif dt_upper in ('CLOB', 'NCLOB', 'LONG'):
+                    data_type = 'TEXT'
+                elif dt_upper == 'BLOB':
+                    data_type = 'BYTEA'
+                elif dt_upper.startswith('RAW') or dt_upper == 'LONG RAW':
+                    data_type = 'BYTEA'
+                elif dt_upper == 'SYSTEM':
+                    # ETL_CRY_DTM 등 시스템 생성 컬럼
                     data_type = 'TIMESTAMP'
                 
                 line = f"    {col.target_column} {data_type}"
@@ -593,9 +660,141 @@ class MappingView(BaseView):
         return {'status': 'success', 'ddl': "\n".join(ddl_lines)}, 200
 
 
+class MetaDBView(BaseView):
+    def is_visible(self):
+        return False
+
+    @expose('/')
+    def index(self):
+        meta_dbs = MetaDB.query.order_by(MetaDB.created_at.desc()).all()
+        return self.render('meta_db_list.html', meta_dbs=meta_dbs)
+
+    @expose('/new', methods=('GET', 'POST'))
+    def create_view(self):
+        if request.method == 'POST':
+            db_type = request.form.get('db_type')
+            meta = MetaDB(
+                name=request.form.get('name'),
+                db_type=db_type,
+                host=request.form.get('host') if db_type != 'sqlite' else None,
+                port=int(request.form.get('port')) if request.form.get('port') and db_type != 'sqlite' else None,
+                database=request.form.get('database'),
+                username=request.form.get('username') if db_type != 'sqlite' else None,
+                password=request.form.get('password') if db_type != 'sqlite' else None,
+                is_active=False,
+                status='Inactive'
+            )
+            db.session.add(meta)
+            db.session.commit()
+            return redirect(url_for('.index'))
+        return self.render('add_meta_db.html', meta_db=None)
+
+    @expose('/edit/<int:id>', methods=('GET', 'POST'))
+    def edit_view(self, id):
+        meta = MetaDB.query.get_or_404(id)
+        if request.method == 'POST':
+            db_type = request.form.get('db_type')
+            meta.name = request.form.get('name')
+            meta.db_type = db_type
+            meta.host = request.form.get('host') if db_type != 'sqlite' else None
+            meta.port = int(request.form.get('port')) if request.form.get('port') and db_type != 'sqlite' else None
+            meta.database = request.form.get('database')
+            meta.username = request.form.get('username') if db_type != 'sqlite' else None
+            if request.form.get('password'):
+                meta.password = request.form.get('password') if db_type != 'sqlite' else None
+            db.session.commit()
+            return redirect(url_for('.index_view'))
+        return self.render('add_meta_db.html', meta_db=meta)
+
+    @expose('/delete/<int:id>', methods=['POST'])
+    def delete_view(self, id):
+        meta = MetaDB.query.get_or_404(id)
+        if meta.is_active:
+            return {'status': 'error', 'message': '활성 상태인 Meta DB는 삭제할 수 없습니다.'}, 400
+        db.session.delete(meta)
+        db.session.commit()
+        return {'status': 'success', 'message': 'Meta DB가 삭제되었습니다.'}, 200
+
+    @expose('/test/<int:id>', methods=['POST'])
+    def test_connection(self, id):
+        meta = MetaDB.query.get_or_404(id)
+        try:
+            if meta.db_type == 'sqlite':
+                import sqlite3
+                db_path = meta.database
+                if not os.path.isabs(db_path):
+                    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', db_path)
+                conn = sqlite3.connect(db_path)
+                conn.execute('SELECT 1')
+                conn.close()
+                return {'status': 'success', 'message': f'SQLite 연결 성공: {meta.database}'}, 200
+            elif meta.db_type == 'oracle':
+                import oracledb
+                dsn = f"{meta.host}:{meta.port}/{meta.database}"
+                conn = oracledb.connect(user=meta.username, password=meta.password, dsn=dsn)
+                conn.ping()
+                conn.close()
+                return {'status': 'success', 'message': f'Oracle 연결 성공: {meta.host}:{meta.port}'}, 200
+            elif meta.db_type == 'postgres':
+                import psycopg2
+                conn = psycopg2.connect(
+                    host=meta.host, port=meta.port,
+                    dbname=meta.database, user=meta.username, password=meta.password
+                )
+                cur = conn.cursor()
+                cur.execute('SELECT 1')
+                cur.close()
+                conn.close()
+                return {'status': 'success', 'message': f'PostgreSQL 연결 성공: {meta.host}:{meta.port}'}, 200
+            elif meta.db_type == 'mysql':
+                import pymysql
+                conn = pymysql.connect(
+                    host=meta.host, port=meta.port,
+                    database=meta.database, user=meta.username, password=meta.password
+                )
+                cur = conn.cursor()
+                cur.execute('SELECT 1')
+                cur.close()
+                conn.close()
+                return {'status': 'success', 'message': f'MySQL 연결 성공: {meta.host}:{meta.port}'}, 200
+            else:
+                return {'status': 'error', 'message': f'지원하지 않는 DB 타입: {meta.db_type}'}, 400
+        except Exception as e:
+            return {'status': 'error', 'message': f'연결 실패: {str(e)}'}, 500
+
+    @expose('/set_active/<int:id>', methods=['POST'])
+    def set_active(self, id):
+        meta = MetaDB.query.get_or_404(id)
+        # Deactivate all others
+        MetaDB.query.update({MetaDB.is_active: False, MetaDB.status: 'Inactive'})
+        meta.is_active = True
+        meta.status = 'Active'
+        db.session.commit()
+        return {'status': 'success', 'message': f'{meta.name}이(가) 활성 Meta DB로 설정되었습니다.'}, 200
+
+    @expose('/api/detail/<int:id>')
+    def api_detail(self, id):
+        meta = MetaDB.query.get_or_404(id)
+        
+        # Default database path for SQLite if empty
+        database = meta.database
+        if meta.db_type == 'sqlite' and not database:
+            database = 'toy_airflow.db'
+            
+        return jsonify({
+            'id': meta.id,
+            'name': meta.name,
+            'db_type': meta.db_type,
+            'host': meta.host,
+            'port': meta.port,
+            'database': database,
+            'username': meta.username
+        })
+
 # Register views
 admin.add_view(ConnectionView(Connection, db.session, name='Connections', endpoint='connections'))
 admin.add_view(MappingView(name='Mappings', endpoint='mappings'))
+admin.add_view(MetaDBView(name='Meta DB', endpoint='meta_db_admin'))
 
 @app.route('/api/mappings/bulk_delete', methods=['POST'])
 def bulk_delete_mappings():
@@ -638,15 +837,30 @@ def api_update_mapping(id):
     data = request.json
     columns_data = data.get('columns', [])
     
-    provided_ids = [c.get('id') for c in columns_data if c.get('id')]
+    provided_ids = []
+    for c in columns_data:
+        cid = c.get('id')
+        if cid is not None and str(cid).strip() != '':
+            try:
+                provided_ids.append(int(cid))
+            except (ValueError, TypeError):
+                pass
     
     # Delete removed columns
-    for col in mapping.columns:
+    for col in list(mapping.columns):
         if col.id not in provided_ids:
             db.session.delete(col)
             
     for col_data in columns_data:
         col_id = col_data.get('id')
+        if col_id is not None and str(col_id).strip() != '':
+            try:
+                col_id = int(col_id)
+            except (ValueError, TypeError):
+                col_id = None
+        else:
+            col_id = None
+
         if col_id:
             # Update existing column
             col = MappingColumn.query.get(col_id)
@@ -883,7 +1097,7 @@ def delete_template_variable(id):
 
 @app.route('/meta_db_settings.html')
 def meta_db_settings_view():
-    return render_template('meta_db_settings.html')
+    return redirect('/admin/meta_db_admin/')
 
 def generate_formatted_sql(mapping):
     """Generates a formatted SQL query for a given mapping."""
@@ -1234,5 +1448,17 @@ if __name__ == '__main__':
             dummy2 = Connection(name='Postgres_DW', conn_type='postgres', host='10.0.0.5', port=5432, database='warehouse', status='Active')
             db.session.add_all([dummy1, dummy2])
             db.session.commit()
+
+        # Create default MetaDB if empty
+        if not MetaDB.query.first():
+            default_meta = MetaDB(
+                name='Default SQLite',
+                db_type='sqlite',
+                database='toy_airflow.db',
+                is_active=True,
+                status='Active'
+            )
+            db.session.add(default_meta)
+            db.session.commit()
             
-    app.run(debug=True, use_reloader=False, port=5000)
+    app.run(debug=True, use_reloader=True, port=5000)

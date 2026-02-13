@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - {{ 'Edit' if meta_db else 'Add' }} Meta DB{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div style="display: flex; align-items: center;">
+        <a href="{{ url_for('meta_db_admin.index') }}" class="btn btn-secondary" style="margin-right: 16px;">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <h1 class="page-title">{{ 'Edit Meta DB' if meta_db else 'Add New Meta DB' }}</h1>
+    </div>
+</header>
+
+<div class="content-body" style="max-width: 800px; margin: 0 auto;">
+    <div class="card">
+        <form method="POST"
+            action="{{ url_for('meta_db_admin.edit_view', id=meta_db.id) if meta_db else url_for('meta_db_admin.create_view') }}">
+
+            <div class="form-group">
+                <label class="form-label" for="meta-name">Name</label>
+                <input type="text" id="meta-name" name="name" class="form-input"
+                    placeholder="e.g., Production Oracle Meta DB" value="{{ meta_db.name if meta_db else '' }}"
+                    required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="meta-type">Database Type</label>
+                <select id="meta-type" name="db_type" class="form-select" required onchange="toggleFields()">
+                    <option value="">Select Type...</option>
+                    <option value="sqlite" {% if meta_db and meta_db.db_type=='sqlite' %}selected{% endif %}>SQLite
+                    </option>
+                    <option value="oracle" {% if meta_db and meta_db.db_type=='oracle' %}selected{% endif %}>Oracle
+                    </option>
+                    <option value="postgres" {% if meta_db and meta_db.db_type=='postgres' %}selected{% endif %}>
+                        PostgreSQL</option>
+                    <option value="mysql" {% if meta_db and meta_db.db_type=='mysql' %}selected{% endif %}>MySQL
+                    </option>
+                </select>
+            </div>
+
+            <!-- SQLite specific field -->
+            <div id="sqlite-fields" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="meta-db-path">Database File Path</label>
+                    <input type="text" id="meta-db-path" class="form-input"
+                        placeholder="e.g., toy_airflow.db or /path/to/database.db"
+                        value="{{ meta_db.database if meta_db and meta_db.db_type == 'sqlite' else '' }}">
+                    <p style="margin-top: 4px; font-size: 12px; color: var(--text-secondary);">
+                        <i class="fas fa-info-circle"></i> 상대 경로를 입력하면 instance 폴더 기준으로 적용됩니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Server-based DB fields -->
+            <div id="server-fields" style="display: none;">
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label" for="meta-host">Host</label>
+                        <input type="text" id="meta-host" name="host" class="form-input" placeholder="127.0.0.1"
+                            value="{{ meta_db.host if meta_db else '' }}">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="meta-port">Port</label>
+                        <input type="number" id="meta-port" name="port" class="form-input" placeholder="5432"
+                            value="{{ meta_db.port if meta_db else '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="meta-database">Database Name / SID</label>
+                    <input type="text" id="meta-database" name="database" class="form-input" placeholder="my_database"
+                        value="{{ meta_db.database if meta_db and meta_db.db_type != 'sqlite' else '' }}">
+                </div>
+
+                <div style="display: flex; gap: var(--spacing-md);">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="meta-user">Username</label>
+                        <input type="text" id="meta-user" name="username" class="form-input" placeholder="admin"
+                            value="{{ meta_db.username if meta_db else '' }}">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label" for="meta-pass">Password</label>
+                        <input type="password" id="meta-pass" name="password" class="form-input"
+                            placeholder="{{ '••••••••' if meta_db else '' }}">
+                        {% if meta_db %}
+                        <div style="font-size: 0.8rem; color: #aaa; margin-top: 4px;">기존 비밀번호를 유지하려면 비워두세요
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div
+                style="margin-top: var(--spacing-xl); display: flex; justify-content: flex-end; gap: var(--spacing-md);">
+                <a href="{{ url_for('meta_db_admin.index') }}" class="btn btn-secondary"
+                    style="text-decoration: none; display: inline-flex; align-items: center;">Cancel</a>
+                <button type="submit" class="btn btn-primary">{{ 'Update Meta DB' if meta_db else 'Save Meta DB'
+                    }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleFields() {
+        const dbType = document.getElementById('meta-type').value;
+        const sqliteFields = document.getElementById('sqlite-fields');
+        const serverFields = document.getElementById('server-fields');
+        const dbPathInput = document.getElementById('meta-db-path');
+
+        if (dbType === 'sqlite') {
+            sqliteFields.style.display = 'block';
+            serverFields.style.display = 'none';
+            // Set default port placeholders
+        } else if (dbType) {
+            sqliteFields.style.display = 'none';
+            serverFields.style.display = 'block';
+
+            // Set default port based on DB type
+            const portInput = document.getElementById('meta-port');
+            const defaults = { 'oracle': '1521', 'postgres': '5432', 'mysql': '3306' };
+            if (!portInput.value) {
+                portInput.placeholder = defaults[dbType] || '5432';
+            }
+        } else {
+            sqliteFields.style.display = 'none';
+            serverFields.style.display = 'none';
+        }
+    }
+
+    // Handle form submission: sync SQLite path to database hidden field
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const dbType = document.getElementById('meta-type').value;
+        if (dbType === 'sqlite') {
+            const dbPath = document.getElementById('meta-db-path').value;
+            // Create a hidden input for the database field
+            let hiddenDb = document.querySelector('input[name="database"][type="hidden"]');
+            if (!hiddenDb) {
+                hiddenDb = document.createElement('input');
+                hiddenDb.type = 'hidden';
+                hiddenDb.name = 'database';
+                this.appendChild(hiddenDb);
+            }
+            hiddenDb.value = dbPath;
+        }
+    });
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function () {
+        toggleFields();
+    });
+</script>
+{% endblock %}

@@ -90,3 +90,19 @@ class GeneratedDAG(db.Model):
 
     def __repr__(self):
         return f'<GeneratedDAG {self.filename}>'
+
+class MetaDB(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    db_type = db.Column(db.String(50), nullable=False)  # sqlite, oracle, postgres, mysql
+    host = db.Column(db.String(255), nullable=True)
+    port = db.Column(db.Integer, nullable=True)
+    database = db.Column(db.String(255), nullable=True)  # DB name or SQLite file path
+    username = db.Column(db.String(100), nullable=True)
+    password = db.Column(db.String(255), nullable=True)
+    is_active = db.Column(db.Boolean, default=False)  # Only one can be active
+    status = db.Column(db.String(20), default='Inactive')
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f'<MetaDB {self.name}>'
