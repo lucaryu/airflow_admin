@@ -1327,7 +1327,7 @@ def generate_dags():
         # ---------------------------------------------------------
         generated_files = []
         success_count = 0
-        output_dir = os.path.join(app.root_path, 'dags_output')
+        output_dir = os.path.abspath(os.path.join(app.root_path, '..', 'dags_output'))
         os.makedirs(output_dir, exist_ok=True)
         
         with open('dags_generation_debug.log', 'a') as log_file:
