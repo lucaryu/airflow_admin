@@ -249,13 +249,13 @@ extract_task = PythonOperator(
 
 {% block scripts %}
 
-<!-- CodeMirror CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+<!-- CodeMirror CSS (Local) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/codemirror.min.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/dracula.min.css') }}">
 
-<!-- CodeMirror JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+<!-- CodeMirror JS (Local) -->
+<script src="{{ url_for('static', filename='vendor/codemirror/js/codemirror.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/codemirror/js/mode/python/python.min.js') }}"></script>
 
 <script>
     // Initialize CodeMirror
