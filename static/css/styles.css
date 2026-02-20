@@ -307,11 +307,11 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   padding: 0;
-  /* Header/Body/Footer handle padding */
   width: 400px;
   max-width: 90%;
   z-index: 1001;
   display: none;
+  overflow: hidden;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
 }
 
@@ -325,10 +325,12 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .modal-body {
   padding: var(--spacing-md);
+  overflow-y: auto;
 }
 
 .modal-footer {

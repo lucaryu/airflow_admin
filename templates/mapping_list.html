@@ -252,6 +252,204 @@
         padding-top: 16px;
         border-top: 1px solid #333;
     }
+
+    /* ===== DAG 생성 모달 개선 스타일 ===== */
+    .dag-modal-section {
+        margin-bottom: 20px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .dag-modal-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+
+    .dag-section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* 선택 매핑 뱃지 */
+    .mapping-tags-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        max-height: 100px;
+        overflow-y: auto;
+        padding: 4px 0;
+    }
+
+    .mapping-tag {
+        background: rgba(76, 201, 240, 0.12);
+        border: 1px solid rgba(76, 201, 240, 0.35);
+        color: #4cc9f0;
+        border-radius: 4px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-family: monospace;
+        white-space: nowrap;
+    }
+
+    /* 스케줄 프리셋 버튼 */
+    .schedule-preset-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+
+    .schedule-preset-btn {
+        background: #2a2a3e;
+        border: 1px solid #444;
+        color: #ccc;
+        border-radius: 5px;
+        padding: 5px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .schedule-preset-btn:hover {
+        border-color: #4cc9f0;
+        color: #4cc9f0;
+    }
+
+    .schedule-preset-btn.active {
+        background: rgba(76, 201, 240, 0.15);
+        border-color: #4cc9f0;
+        color: #4cc9f0;
+        font-weight: 600;
+    }
+
+    /* 스케줄 상세 옵션 */
+    .schedule-detail-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 12px 14px;
+        margin-top: 4px;
+    }
+
+    .schedule-detail-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+    }
+
+    .schedule-detail-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .schedule-detail-label {
+        font-size: 12px;
+        color: #aaa;
+        min-width: 40px;
+    }
+
+    .schedule-num-select {
+        background: #2a2a3e;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+    .schedule-num-select:focus {
+        outline: none;
+        border-color: #4cc9f0;
+    }
+
+    .cron-result-box {
+        margin-top: 10px;
+        background: #1a1a2e;
+        border: 1px solid #2a2a4a;
+        border-radius: 5px;
+        padding: 7px 12px;
+        font-family: monospace;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .cron-expr-display {
+        color: #4cc9f0;
+        font-weight: bold;
+        letter-spacing: 0.05em;
+    }
+
+    .cron-desc-display {
+        color: #aaa;
+        font-size: 12px;
+    }
+
+    /* Catchup 토글 */
+    .catchup-toggle-group {
+        display: flex;
+        gap: 0;
+        border: 1px solid #444;
+        border-radius: 5px;
+        overflow: hidden;
+        width: fit-content;
+    }
+
+    .catchup-toggle-btn {
+        background: #2a2a3e;
+        border: none;
+        color: #888;
+        padding: 5px 18px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.15s;
+        border-right: 1px solid #444;
+    }
+
+    .catchup-toggle-btn:last-child {
+        border-right: none;
+    }
+
+    .catchup-toggle-btn.active-on {
+        background: rgba(46, 213, 115, 0.2);
+        color: #2ed573;
+        font-weight: 600;
+    }
+
+    .catchup-toggle-btn.active-off {
+        background: rgba(255, 99, 99, 0.15);
+        color: #ff6363;
+        font-weight: 600;
+    }
+
+    /* 직접 입력 크론 */
+    .custom-cron-input {
+        background: #2a2a3e;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        border-radius: 5px;
+        padding: 6px 10px;
+        font-family: monospace;
+        font-size: 13px;
+        width: 100%;
+        transition: border-color 0.15s;
+    }
+
+    .custom-cron-input:focus {
+        outline: none;
+        border-color: #4cc9f0;
+    }
 </style>
 {% endblock %}
 
@@ -429,45 +627,182 @@
 <!-- DAG Generation Modal -->
 <div id="dag-modal-overlay" class="modal-overlay"></div>
 <div id="dag-modal" class="modal-container"
-    style="max-width: 800px; width: 90%; height: auto; max-height: 90vh; display: none; flex-direction: column;">
+    style="max-width: 780px; width: 96%; height: 90vh; display: none; flex-direction: column;">
     <div class="modal-header">
-        <h3 style="margin: 0; font-weight: 600;">Generate DAGs</h3>
+        <h3 style="margin: 0; font-weight: 600;"><i class="fas fa-magic"
+                style="color:#e67e22; margin-right:8px;"></i>Generate DAGs</h3>
         <button class="btn btn-secondary" onclick="closeDagModal()"><i class="fas fa-times"></i></button>
     </div>
-    <div class="modal-body">
-        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">
-            Select a template to generate DAGs for the selected mappings.
-        </p>
-        <div class="form-group">
-            <label class="form-label">DAG Template</label>
-            <select class="form-select" id="dag-template-select">
-                <option value="" disabled selected>Select a template...</option>
-                <!-- Templates will be loaded here -->
-            </select>
-        </div>
-    </div>
-    <div class="modal-footer" style="flex-direction: column; align-items: stretch;">
-        <div id="dag-preview-area"
-            style="width: 100%; margin-bottom: 15px; display: none; text-align: left; flex: 1; overflow: hidden; display: flex; flex-direction: column;">
-            <h4
-                style="margin-bottom: 10px; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between;">
-                <span>Preview SQL</span>
-                <span style="font-size: 12px; font-weight: normal; color: var(--text-secondary);">Generated based on
-                    selected mappings</span>
-            </h4>
-            <div id="preview-content"
-                style="background: transparent; padding: 0; font-family: monospace; font-size: 13px; overflow-y: auto; max-height: 400px; padding-right: 5px;">
+    <div class="modal-body" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0;">
+
+        <!-- 1. 선택된 매핑 목록 -->
+        <div class="dag-modal-section">
+            <div class="dag-section-title"><i class="fas fa-list-check"></i> 선택된 매핑</div>
+            <div class="mapping-tags-wrap" id="dag-selected-mappings">
+                <!-- JS로 채워짐 -->
             </div>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-            <div id="dag-result-message" class="alert"
-                style="display: none; margin: 0; flex: 1; text-align: left; margin-right: 10px;"></div>
+
+        <!-- 2. DAG 템플릿 -->
+        <div class="dag-modal-section">
+            <div class="dag-section-title"><i class="fas fa-file-code"></i> DAG 템플릿</div>
+            <select class="form-select" id="dag-template-select">
+                <option value="" disabled selected>템플릿 선택...</option>
+            </select>
+        </div>
+
+        <!-- 3. DAG 설정 -->
+        <div class="dag-modal-section">
+            <div class="dag-section-title"><i class="fas fa-cog"></i> DAG 설정</div>
+
+            <!-- DAG ID Prefix -->
+            <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="font-size:13px;">DAG ID Prefix <span
+                        style="color:#666;font-weight:normal;">(선택 사항)</span></label>
+                <input type="text" class="form-input" id="dag-id-prefix" placeholder="예: etl_, prod_ (미입력 시 자동 생성)"
+                    style="font-family: monospace;">
+            </div>
+
+            <!-- 스케줄 -->
+            <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="font-size:13px; margin-bottom:8px; display:block;">스케줄
+                    (Schedule)</label>
+                <!-- 프리셋 버튼 -->
+                <div class="schedule-preset-group">
+                    <button class="schedule-preset-btn" data-type="daily"
+                        onclick="selectSchedulePreset(this, 'daily')">🌅 매일</button>
+                    <button class="schedule-preset-btn" data-type="weekly"
+                        onclick="selectSchedulePreset(this, 'weekly')">📅 매주</button>
+                    <button class="schedule-preset-btn" data-type="monthly"
+                        onclick="selectSchedulePreset(this, 'monthly')">🗓 매월</button>
+                    <button class="schedule-preset-btn" data-type="hourly"
+                        onclick="selectSchedulePreset(this, 'hourly')">⏱ 매시간</button>
+                    <button class="schedule-preset-btn" data-type="once"
+                        onclick="selectSchedulePreset(this, 'once')">1️⃣ 1회만</button>
+                    <button class="schedule-preset-btn" data-type="none" onclick="selectSchedulePreset(this, 'none')">🚫
+                        스케줄 없음</button>
+                    <button class="schedule-preset-btn" data-type="custom"
+                        onclick="selectSchedulePreset(this, 'custom')">✏️ 직접 입력</button>
+                </div>
+
+                <!-- 매일 옵션 -->
+                <div class="schedule-detail-box" id="sched-daily" style="display:none;">
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">시간</span>
+                        <select class="schedule-num-select" id="daily-hour" onchange="updateCronFromUI()">
+                            <!-- JS로 생성 -->
+                        </select>
+                        <span class="schedule-detail-label" style="margin-left:4px;">분</span>
+                        <select class="schedule-num-select" id="daily-minute" onchange="updateCronFromUI()">
+                            <!-- JS로 생성 -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 매주 옵션 -->
+                <div class="schedule-detail-box" id="sched-weekly" style="display:none;">
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">요일</span>
+                        <select class="schedule-num-select" id="weekly-dow" onchange="updateCronFromUI()">
+                            <option value="0">일요일</option>
+                            <option value="1">월요일</option>
+                            <option value="2">화요일</option>
+                            <option value="3">수요일</option>
+                            <option value="4">목요일</option>
+                            <option value="5">금요일</option>
+                            <option value="6">토요일</option>
+                        </select>
+                    </div>
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">시간</span>
+                        <select class="schedule-num-select" id="weekly-hour" onchange="updateCronFromUI()"></select>
+                        <span class="schedule-detail-label" style="margin-left:4px;">분</span>
+                        <select class="schedule-num-select" id="weekly-minute" onchange="updateCronFromUI()"></select>
+                    </div>
+                </div>
+
+                <!-- 매월 옵션 -->
+                <div class="schedule-detail-box" id="sched-monthly" style="display:none;">
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">매월</span>
+                        <select class="schedule-num-select" id="monthly-day" onchange="updateCronFromUI()">
+                            <!-- JS로 생성 -->
+                        </select>
+                        <span class="schedule-detail-label" style="margin-left:2px;">일</span>
+                    </div>
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">시간</span>
+                        <select class="schedule-num-select" id="monthly-hour" onchange="updateCronFromUI()"></select>
+                        <span class="schedule-detail-label" style="margin-left:4px;">분</span>
+                        <select class="schedule-num-select" id="monthly-minute" onchange="updateCronFromUI()"></select>
+                    </div>
+                </div>
+
+                <!-- 매시간 옵션 -->
+                <div class="schedule-detail-box" id="sched-hourly" style="display:none;">
+                    <div class="schedule-detail-row">
+                        <span class="schedule-detail-label">분</span>
+                        <select class="schedule-num-select" id="hourly-minute" onchange="updateCronFromUI()"></select>
+                        <span class="schedule-detail-label" style="margin-left:4px;">분에 실행</span>
+                    </div>
+                </div>
+
+                <!-- 직접 입력 -->
+                <div class="schedule-detail-box" id="sched-custom" style="display:none;">
+                    <div style="margin-bottom:6px; font-size:12px; color:#aaa;">크론 표현식 직접 입력 (분 시 일 월 요일)</div>
+                    <input type="text" class="custom-cron-input" id="custom-cron-input"
+                        placeholder="예: 0 2 * * *  또는  0 9 * * 1" oninput="updateCronFromCustomInput()">
+                </div>
+
+                <!-- 크론 결과 표시 (프리셋 없음/@once 제외) -->
+                <div class="cron-result-box" id="cron-result-box" style="display:none;">
+                    <div>
+                        <div style="font-size:11px; color:#666; margin-bottom:2px;">Cron Expression</div>
+                        <div class="cron-expr-display" id="cron-expr-display"></div>
+                    </div>
+                    <div class="cron-desc-display" id="cron-desc-display"></div>
+                </div>
+            </div>
+
+            <!-- Catchup -->
+            <div class="form-group">
+                <label class="form-label" style="font-size:13px; margin-bottom:8px; display:block;">Catchup</label>
+                <div class="catchup-toggle-group">
+                    <button class="catchup-toggle-btn" id="catchup-off-btn" onclick="setCatchup(false)">OFF</button>
+                    <button class="catchup-toggle-btn" id="catchup-on-btn" onclick="setCatchup(true)">ON</button>
+                </div>
+                <div style="font-size:11px; color:#666; margin-top:5px;" id="catchup-desc">과거 미실행 DAG를 소급 실행하지 않습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview 영역 -->
+        <div id="dag-preview-area"
+            style="display: none; padding: 0 var(--spacing-md); flex-direction: column; max-height: 220px; overflow: hidden; flex-shrink: 0;">
+            <h4
+                style="margin: 10px 0 6px; color: var(--text-primary); font-size:14px; display:flex; align-items:center; justify-content:space-between;">
+                <span>Preview SQL</span>
+                <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">선택된 매핑 기반으로 생성</span>
+            </h4>
+            <div id="preview-content"
+                style="background: transparent; font-family: monospace; font-size: 12px; overflow-y: auto; flex:1; padding-bottom:8px;">
+            </div>
+        </div>
+
+    </div><!-- /modal-body -->
+
+    <!-- 항상 하단에 고정되는 footer -->
+    <div class="modal-footer" style="justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div id="dag-result-message" class="alert"
+            style="display: none; margin: 0; flex: 1; margin-right: 10px; max-height: 120px; overflow-y: auto;"></div>
+        <div style="display:flex; gap:8px; margin-left:auto;">
             <button class="btn btn-secondary" onclick="previewSql()"><i class="fas fa-eye"></i> Preview SQL</button>
-            <button class="btn btn-secondary" onclick="closeDagModal()">Cancel</button>
-            <button type="button" class="btn btn-primary" onclick="generateDags(this)">Generate</button>
+            <button class="btn btn-secondary" onclick="closeDagModal()">취소</button>
+            <button type="button" class="btn btn-primary" onclick="generateDags(this)"><i class="fas fa-play"></i>
+                Generate</button>
         </div>
     </div>
-</div>
+</div><!-- /dag-modal -->
 
 <!-- Advanced Sort Modal -->
 <div id="advSortModal">
@@ -1065,41 +1400,209 @@
         });
     }
 
-    // DAG Generation Logic
+    // ========== DAG Generation Logic ==========
     const dagModalOverlay = document.getElementById('dag-modal-overlay');
     const dagModal = document.getElementById('dag-modal');
     const dagTemplateSelect = document.getElementById('dag-template-select');
-    const dagResult = document.getElementById('dag-result-message'); // Changed from dag-generation-result
+    const dagResult = document.getElementById('dag-result-message');
 
-    function openGenerateModal() {
-        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
-        if (checkboxes.length === 0) {
-            alert('Please select at least one mapping to generate DAGs.');
+    // 현재 매핑 행에서 텍스트 정보 추출 (체크박스 value = id, td[1]=sourcetable, td[4]=targettable)
+    function getCheckedMappingInfos() {
+        const rows = document.querySelectorAll('.mapping-checkbox:checked');
+        return Array.from(rows).map(cb => {
+            const tr = cb.closest('tr');
+            const cells = tr ? tr.querySelectorAll('td') : [];
+            const sourceTable = cells[1] ? cells[1].innerText.trim() : cb.value;
+            const targetTable = cells[4] ? cells[4].innerText.trim() : '';
+            return { id: parseInt(cb.value), sourceTable, targetTable };
+        });
+    }
+
+    // ===== 스케줄 UI 상태 =====
+    let _currentScheduleType = null; // 'daily','weekly','monthly','hourly','once','none','custom'
+    let _catchupValue = false;
+
+    function _fillSelect(el, options) {
+        // options: 배열 [{value, label}] 또는 숫자 범위 [start, end]
+        el.innerHTML = '';
+        options.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.value !== undefined ? o.value : o;
+            opt.textContent = o.label !== undefined ? o.label : String(o).padStart(2, '0');
+            el.appendChild(opt);
+        });
+    }
+
+    function _initScheduleSelects() {
+        // 시/분 옵션 생성
+        const hours = Array.from({ length: 24 }, (_, i) => ({ value: i, label: String(i).padStart(2, '0') + '시' }));
+        const minutes = Array.from({ length: 60 }, (_, i) => ({ value: i, label: String(i).padStart(2, '0') + '분' }));
+        const days = Array.from({ length: 31 }, (_, i) => ({ value: i + 1, label: String(i + 1) + '일' }));
+        const minutesShort = Array.from({ length: 60 }, (_, i) => ({ value: i, label: String(i).padStart(2, '0') }));
+
+        _fillSelect(document.getElementById('daily-hour'), hours);
+        _fillSelect(document.getElementById('daily-minute'), minutes);
+        _fillSelect(document.getElementById('weekly-hour'), hours);
+        _fillSelect(document.getElementById('weekly-minute'), minutes);
+        _fillSelect(document.getElementById('monthly-day'), days);
+        _fillSelect(document.getElementById('monthly-hour'), hours);
+        _fillSelect(document.getElementById('monthly-minute'), minutes);
+        _fillSelect(document.getElementById('hourly-minute'), minutesShort);
+
+        // 기본값: 매일 오전 2시 0분
+        document.getElementById('daily-hour').value = 2;
+        document.getElementById('daily-minute').value = 0;
+    }
+
+    function selectSchedulePreset(btn, type) {
+        _currentScheduleType = type;
+        // 버튼 active 상태
+        document.querySelectorAll('.schedule-preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // 상세 영역 숨기기
+        ['daily', 'weekly', 'monthly', 'hourly', 'custom'].forEach(t => {
+            document.getElementById('sched-' + t).style.display = 'none';
+        });
+        document.getElementById('cron-result-box').style.display = 'none';
+
+        if (type === 'once' || type === 'none') {
+            // 별도 상세 없음
             return;
         }
 
-        // Load templates
-        fetch('/api/templates')
-            .then(response => response.json())
-            .then(templates => {
-                dagTemplateSelect.innerHTML = '<option value="" disabled selected>Select a template...</option>';
-                templates.forEach(t => {
-                    const option = document.createElement('option');
-                    option.value = t.id;
-                    option.textContent = t.name;
-                    dagTemplateSelect.appendChild(option);
-                });
+        document.getElementById('sched-' + type).style.display = 'block';
+        if (type !== 'custom') {
+            updateCronFromUI();
+        }
+    }
 
+    function updateCronFromUI() {
+        if (!_currentScheduleType) return;
+        let expr = '', desc = '';
+
+        if (_currentScheduleType === 'daily') {
+            const h = document.getElementById('daily-hour').value;
+            const m = document.getElementById('daily-minute').value;
+            expr = `${m} ${h} * * *`;
+            desc = `매일 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} 실행`;
+        } else if (_currentScheduleType === 'weekly') {
+            const dow = document.getElementById('weekly-dow').value;
+            const h = document.getElementById('weekly-hour').value;
+            const m = document.getElementById('weekly-minute').value;
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            expr = `${m} ${h} * * ${dow}`;
+            desc = `매주 ${days[dow]}요일 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} 실행`;
+        } else if (_currentScheduleType === 'monthly') {
+            const day = document.getElementById('monthly-day').value;
+            const h = document.getElementById('monthly-hour').value;
+            const m = document.getElementById('monthly-minute').value;
+            expr = `${m} ${h} ${day} * *`;
+            desc = `매월 ${day}일 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} 실행`;
+        } else if (_currentScheduleType === 'hourly') {
+            const m = document.getElementById('hourly-minute').value;
+            expr = `${m} * * * *`;
+            desc = `매시간 ${String(m).padStart(2, '0')}분에 실행`;
+        }
+
+        if (expr) {
+            document.getElementById('cron-expr-display').textContent = expr;
+            document.getElementById('cron-desc-display').textContent = desc;
+            document.getElementById('cron-result-box').style.display = 'flex';
+        }
+    }
+
+    function updateCronFromCustomInput() {
+        const val = document.getElementById('custom-cron-input').value.trim();
+        if (!val) {
+            document.getElementById('cron-result-box').style.display = 'none';
+            return;
+        }
+        // 간단 파싱: 5 파트 크론 표현식 설명
+        const parts = val.split(/\s+/);
+        let desc = '';
+        if (parts.length === 5) {
+            const [m, h, dom, mon, dow] = parts;
+            if (h !== '*' && m !== '*') desc = `${h.padStart ? h : h}:${m.padStart ? m : m} 에 실행`;
+            if (dom !== '*') desc = `매월 ${dom}일 ` + desc;
+            if (dow !== '*') { const dk = ['일', '월', '화', '수', '목', '금', '토']; desc = `매주 ${dk[parseInt(dow)] || dow}요일 ` + desc; }
+            if (mon !== '*') desc = `${mon}월마다 ` + desc;
+            if (h === '*') desc = `매시간 ${m}분 실행`;
+        }
+        document.getElementById('cron-expr-display').textContent = val;
+        document.getElementById('cron-desc-display').textContent = desc || '유효한 크론 표현식';
+        document.getElementById('cron-result-box').style.display = 'flex';
+    }
+
+    function getScheduleInterval() {
+        if (!_currentScheduleType) return null;
+        if (_currentScheduleType === 'none') return 'None';
+        if (_currentScheduleType === 'once') return '@once';
+        if (_currentScheduleType === 'custom') {
+            return document.getElementById('custom-cron-input').value.trim() || null;
+        }
+        return document.getElementById('cron-expr-display').textContent.trim() || null;
+    }
+
+    function setCatchup(val) {
+        _catchupValue = val;
+        const onBtn = document.getElementById('catchup-on-btn');
+        const offBtn = document.getElementById('catchup-off-btn');
+        const desc = document.getElementById('catchup-desc');
+        onBtn.className = val ? 'catchup-toggle-btn active-on' : 'catchup-toggle-btn';
+        offBtn.className = val ? 'catchup-toggle-btn' : 'catchup-toggle-btn active-off';
+        desc.textContent = val
+            ? '과거 미실행 DAG를 소급 실행합니다.'
+            : '과거 미실행 DAG를 소급 실행하지 않습니다.';
+    }
+
+    function openGenerateModal() {
+        const mappingInfos = getCheckedMappingInfos();
+        if (mappingInfos.length === 0) {
+            alert('매핑을 하나 이상 선택하세요.');
+            return;
+        }
+
+        // 선택된 매핑 뱃지 표시
+        const tagsWrap = document.getElementById('dag-selected-mappings');
+        tagsWrap.innerHTML = mappingInfos.map(m => {
+            const label = m.targetTable ? `${m.sourceTable} → ${m.targetTable}` : m.sourceTable;
+            return `<span class="mapping-tag" title="ID: ${m.id}">${label}</span>`;
+        }).join('');
+
+        // 크론 UI 초기화
+        _initScheduleSelects();
+        _currentScheduleType = null;
+        _catchupValue = false;
+        document.querySelectorAll('.schedule-preset-btn').forEach(b => b.classList.remove('active'));
+        ['daily', 'weekly', 'monthly', 'hourly', 'custom'].forEach(t => {
+            document.getElementById('sched-' + t).style.display = 'none';
+        });
+        document.getElementById('cron-result-box').style.display = 'none';
+        document.getElementById('custom-cron-input').value = '';
+        document.getElementById('dag-id-prefix').value = '';
+        setCatchup(false);
+
+        // 템플릿 로드
+        fetch('/api/templates')
+            .then(r => r.json())
+            .then(templates => {
+                dagTemplateSelect.innerHTML = '<option value="" disabled selected>템플릿 선택...</option>';
+                templates.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.name;
+                    dagTemplateSelect.appendChild(opt);
+                });
                 dagResult.style.display = 'none';
                 dagResult.innerHTML = '';
-                document.getElementById('dag-preview-area').style.display = 'none'; // Hide preview area on open
-
+                document.getElementById('dag-preview-area').style.display = 'none';
                 dagModalOverlay.style.display = 'block';
                 dagModal.style.display = 'flex';
             })
             .catch(err => {
                 console.error('Error loading templates:', err);
-                alert('Failed to load templates.');
+                alert('템플릿 로드 실패.');
             });
     }
 
@@ -1111,12 +1614,16 @@
     function generateDags(btn) {
         const templateId = dagTemplateSelect.value;
         if (!templateId) {
-            alert('Please select a template.');
+            alert('템플릿을 선택하세요.');
             return;
         }
 
-        const checkboxes = document.querySelectorAll('.mapping-checkbox:checked');
-        const mappingIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        const mappingInfos = getCheckedMappingInfos();
+        const mappingIds = mappingInfos.map(m => m.id);
+
+        const dagIdPrefix = document.getElementById('dag-id-prefix').value.trim();
+        const scheduleInterval = getScheduleInterval();
+        const catchup = _catchupValue;
 
         const originalText = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
@@ -1127,16 +1634,17 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 template_id: templateId,
-                mapping_ids: mappingIds
+                mapping_ids: mappingIds,
+                dag_id_prefix: dagIdPrefix || null,
+                schedule_interval: scheduleInterval,
+                catchup: catchup
             })
         })
             .then(async response => {
                 const isJson = response.headers.get('content-type')?.includes('application/json');
                 const data = isJson ? await response.json() : null;
-
                 if (!response.ok) {
-                    // Get error message from JSON or text
-                    const error = (data && data.message) || await response.text() || response.statusText;
+                    const error = (data && data.message) || response.statusText;
                     return Promise.reject(error);
                 }
                 return data;
@@ -1144,17 +1652,15 @@
             .then(data => {
                 dagResult.style.display = 'block';
                 if (data.status === 'success') {
-                    dagResult.className = 'alert alert-success'; // Add success class
-                    // ... success logic remains same
+                    dagResult.className = 'alert alert-success';
                     let fileList = '';
                     if (data.generated_files && data.generated_files.length > 0) {
                         fileList = '<ul style="margin-top:8px; font-size:13px;">' +
-                            data.generated_files.map(f => `<li>${f}</li>`).join('') +
-                            '</ul>';
+                            data.generated_files.map(f => `<li>${f}</li>`).join('') + '</ul>';
                     }
                     dagResult.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message} ${fileList}`;
                 } else {
-                    dagResult.className = 'alert alert-error'; // Add error class
+                    dagResult.className = 'alert alert-error';
                     dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${data.message}`;
                 }
             })
@@ -1162,7 +1668,6 @@
                 console.error('Error generating DAGs:', err);
                 dagResult.style.display = 'block';
                 dagResult.className = 'alert alert-error';
-                // Display the error object if it's a string, or message property
                 const msg = (typeof err === 'string') ? err : (err.message || 'Unknown Error');
                 dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Unexpected Error: ${msg}`;
             })
@@ -1178,12 +1683,12 @@
         const previewContent = document.getElementById('preview-content');
 
         if (selectedIds.length === 0) {
-            alert('Please select at least one mapping to preview.');
+            alert('매핑을 하나 이상 선택하세요.');
             return;
         }
 
         previewContent.innerHTML = 'Loading preview...';
-        previewArea.style.display = 'block';
+        previewArea.style.display = 'flex';
 
         fetch('/api/dags/preview', {
             method: 'POST',
@@ -1197,40 +1702,29 @@
                     data.previews.forEach((p, index) => {
                         const sqlId = `sql-preview-${index}`;
                         html += `
-                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); margin-bottom: 15px; overflow: hidden;">
-                            <div style="padding: 8px 12px; background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <span style="color: var(--primary-color); margin-right: 8px;">#${index + 1}</span>
-                                    ${p.mapping_name}
-                                </div>
-                                <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 11px;" onclick="copyPreviewSql('${sqlId}')">
-                                    <i class="fas fa-copy"></i> Copy
-                                </button>
+                        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius); margin-bottom: 10px; overflow: hidden;">
+                            <div style="padding: 6px 12px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--border-color); font-weight: 600; font-size: 12px; display:flex; align-items:center; justify-content:space-between;">
+                                <div><span style="color:var(--primary-color); margin-right:6px;">#${index + 1}</span>${p.mapping_name}</div>
+                                <button class="btn btn-secondary" style="padding:2px 8px; font-size:11px;" onclick="copyPreviewSql('${sqlId}')"><i class="fas fa-copy"></i> Copy</button>
                             </div>
-                            <div style="padding: 0;">
-                                <pre id="${sqlId}" style="margin: 0; padding: 12px; background: #1e1e1e; color: #d4d4d4; white-space: pre-wrap; word-break: break-all; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5;">${p.source_sql}</pre>
-                            </div>
+                            <pre id="${sqlId}" style="margin:0; padding:10px 12px; background:#1e1e1e; color:#d4d4d4; white-space:pre-wrap; word-break:break-all; font-family:monospace; font-size:12px; line-height:1.5;">${p.source_sql}</pre>
                         </div>`;
                     });
                     previewContent.innerHTML = html;
-                    previewArea.style.display = 'flex'; // Use flex to handle layout correctly
                 } else {
-                    previewContent.innerHTML = `<span style="color: var(--error-color);">Error: ${data.message}</span>`;
+                    previewContent.innerHTML = `<span style="color:var(--error-color);">Error: ${data.message}</span>`;
                 }
             })
             .catch(err => {
-                console.error('Error previewing SQL:', err);
-                previewContent.innerHTML = `<span style="color: var(--error-color);">Unexpected Error: ${err.message}</span>`;
+                previewContent.innerHTML = `<span style="color:var(--error-color);">Error: ${err.message}</span>`;
             });
     }
 
     function copyPreviewSql(elementId) {
         const text = document.getElementById(elementId).textContent;
         navigator.clipboard.writeText(text).then(() => {
-            // Optional: Show a small toast or change button text temporarily
             alert('SQL copied to clipboard!');
         }).catch(err => {
-            console.error('Failed to copy text: ', err);
             alert('Failed to copy SQL.');
         });
     }

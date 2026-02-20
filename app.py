@@ -1322,9 +1322,11 @@ def generate_dags():
         
     try:
         data = request.json
-        # ... (no changes to data validation) ...
         template_id = data.get('template_id')
         mapping_ids = data.get('mapping_ids', [])
+        dag_id_prefix = (data.get('dag_id_prefix') or '').strip()
+        schedule_interval = data.get('schedule_interval')  # None / 'None' / '@once' / cron string
+        catchup = data.get('catchup', False)  # bool
 
         if not template_id or not mapping_ids:
             return {'status': 'error', 'message': 'Template ID and Mapping IDs are required'}, 400
@@ -1435,8 +1437,24 @@ def generate_dags():
                 else:
                     dag_name = f"dag_{_safe(m_data['source_conn_name'])}_{_safe(m_data['source_table'])}_{timestamp_str}"
 
+                # dag_id_prefix 적용
+                if dag_id_prefix:
+                    dag_name = f"{dag_id_prefix}_{dag_name}"
+
                 filename = f"{dag_name}.py"
                 filepath = os.path.join(output_dir, filename)
+
+                # schedule_interval 값 결정
+                if schedule_interval is None:
+                    sched_val = 'None'
+                elif str(schedule_interval).strip() in ('None', ''):
+                    sched_val = 'None'
+                elif str(schedule_interval).strip() == '@once':
+                    sched_val = '@once'
+                else:
+                    sched_val = f"'{schedule_interval}'"
+
+                catchup_val = 'True' if catchup else 'False'
 
                 replacements = {
                     '{{ source_sql }}': m_data['source_sql'],
@@ -1452,7 +1470,14 @@ def generate_dags():
                     '{{ target_conn }}': m_data['target_conn_name'],
                     '{{ Dag_Name }}': dag_name,
                     '{{Dag_Name}}': dag_name,
-                    '{{DAG_NAME}}': dag_name
+                    '{{DAG_NAME}}': dag_name,
+                    '{{ dag_name }}': dag_name,
+                    '{{ schedule_interval }}': sched_val,
+                    '{{schedule_interval}}': sched_val,
+                    '{{ SCHEDULE_INTERVAL }}': sched_val,
+                    '{{ catchup }}': catchup_val,
+                    '{{catchup}}': catchup_val,
+                    '{{ CATCHUP }}': catchup_val,
                 }
                 
                 for key, value in replacements.items():
