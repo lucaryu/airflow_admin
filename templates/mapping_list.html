@@ -627,7 +627,7 @@
 <!-- DAG Generation Modal -->
 <div id="dag-modal-overlay" class="modal-overlay"></div>
 <div id="dag-modal" class="modal-container"
-    style="max-width: 780px; width: 96%; height: 90vh; display: none; flex-direction: column;">
+    style="max-width: 1050px; width: 95%; height: 92vh; display: none; flex-direction: column;">
     <div class="modal-header">
         <h3 style="margin: 0; font-weight: 600;"><i class="fas fa-magic"
                 style="color:#e67e22; margin-right:8px;"></i>Generate DAGs</h3>
@@ -778,29 +778,30 @@
 
         <!-- Preview 영역 -->
         <div id="dag-preview-area"
-            style="display: none; padding: 0 var(--spacing-md); flex-direction: column; max-height: 220px; overflow: hidden; flex-shrink: 0;">
+            style="display: none; padding: 0 var(--spacing-md); flex-direction: column; max-height: 380px; overflow-y: auto; flex-shrink: 0; border-top: 1px solid var(--border-color); margin-top: 4px;">
             <h4
-                style="margin: 10px 0 6px; color: var(--text-primary); font-size:14px; display:flex; align-items:center; justify-content:space-between;">
-                <span>Preview SQL</span>
+                style="margin: 10px 0 6px; color: var(--text-primary); font-size:14px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--card-bg); z-index:1; padding:8px 0;">
+                <span><i class="fas fa-database" style="color:#4cc9f0; margin-right:6px;"></i>Preview SQL</span>
                 <span style="font-size:11px; font-weight:normal; color:var(--text-secondary);">선택된 매핑 기반으로 생성</span>
             </h4>
             <div id="preview-content"
-                style="background: transparent; font-family: monospace; font-size: 12px; overflow-y: auto; flex:1; padding-bottom:8px;">
+                style="background: transparent; font-family: monospace; font-size: 12px; padding-bottom:12px;">
             </div>
         </div>
 
     </div><!-- /modal-body -->
 
+    <!-- 결과 메시지 영역 (footer 바로 위) -->
+    <div id="dag-result-message" class="alert"
+        style="display: none; margin: 0 var(--spacing-md) 0; border-radius: 6px; font-size:13px; line-height:1.5;">
+    </div>
+
     <!-- 항상 하단에 고정되는 footer -->
-    <div class="modal-footer" style="justify-content: space-between; align-items: center; flex-shrink: 0;">
-        <div id="dag-result-message" class="alert"
-            style="display: none; margin: 0; flex: 1; margin-right: 10px; max-height: 120px; overflow-y: auto;"></div>
-        <div style="display:flex; gap:8px; margin-left:auto;">
-            <button class="btn btn-secondary" onclick="previewSql()"><i class="fas fa-eye"></i> Preview SQL</button>
-            <button class="btn btn-secondary" onclick="closeDagModal()">취소</button>
-            <button type="button" class="btn btn-primary" onclick="generateDags(this)"><i class="fas fa-play"></i>
-                Generate</button>
-        </div>
+    <div class="modal-footer" style="justify-content: flex-end; align-items: center; flex-shrink: 0; gap: 8px;">
+        <button class="btn btn-secondary" onclick="previewSql()"><i class="fas fa-eye"></i> Preview SQL</button>
+        <button class="btn btn-secondary" onclick="closeDagModal()">취소</button>
+        <button type="button" class="btn btn-primary" onclick="generateDags(this)"><i class="fas fa-play"></i>
+            Generate</button>
     </div>
 </div><!-- /dag-modal -->
 
