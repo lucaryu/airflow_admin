@@ -217,7 +217,7 @@ default_args = {
 'start_date': datetime(2024, 1, 1),
 }
 
-with DAG('{{ dag_id }}', default_args=default_args, schedule_interval='@daily') as dag:
+with DAG('{{ Dag_Name }}', default_args=default_args, schedule={{ schedule_interval }}) as dag:
 
 def extract():
     print("Extracting from {{ source_conn }}")

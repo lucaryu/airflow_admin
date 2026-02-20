@@ -1660,9 +1660,19 @@
                             data.generated_files.map(f => `<li>${f}</li>`).join('') + '</ul>';
                     }
                     dagResult.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message} ${fileList}`;
+                    // 성공 시: 취소 버튼 숨기고 Generate 버튼을 완료 버튼으로 변경
+                    const cancelBtn = btn.parentElement.querySelector('.btn-secondary:last-of-type');
+                    if (cancelBtn) cancelBtn.style.display = 'none';
+                    btn.innerHTML = '<i class="fas fa-check"></i> 완료';
+                    btn.style.background = 'linear-gradient(135deg, #2ed573, #17c0cb)';
+                    btn.style.borderColor = '#2ed573';
+                    btn.disabled = false;
+                    btn.onclick = function () { window.location.href = '/dag_generation_list.html'; };
                 } else {
                     dagResult.className = 'alert alert-error';
                     dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${data.message}`;
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
                 }
             })
             .catch(err => {
@@ -1671,8 +1681,6 @@
                 dagResult.className = 'alert alert-error';
                 const msg = (typeof err === 'string') ? err : (err.message || 'Unknown Error');
                 dagResult.innerHTML = `<i class="fas fa-exclamation-circle"></i> Unexpected Error: ${msg}`;
-            })
-            .finally(() => {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             });
