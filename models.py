@@ -106,3 +106,12 @@ class MetaDB(db.Model):
 
     def __repr__(self):
         return f'<MetaDB {self.name}>'
+
+class DagNamingRule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rule_tokens = db.Column(db.Text, nullable=False, default='[]')  # JSON list of token dicts
+    separator = db.Column(db.String(5), default='_')  # _, -, .
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f'<DagNamingRule id={self.id}>'

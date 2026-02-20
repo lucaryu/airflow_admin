@@ -120,7 +120,7 @@ class ConnectionView(ModelView):
 # Setup Admin
 admin = Admin(app, name='Toy Airflow', url='/admin')
 
-from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG, MetaDB
+from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG, MetaDB, DagNamingRule
 
 class MappingView(BaseView):
     @expose('/')
@@ -929,6 +929,9 @@ def serve_pages(page_name):
     if page_name == 'dag_generation_list':
         dags = GeneratedDAG.query.order_by(GeneratedDAG.created_at.desc()).all()
         return render_template(f'{page_name}.html', dags=dags)
+    if page_name == 'dag_naming_rule':
+        rule = DagNamingRule.query.first()
+        return render_template('dag_naming_rule.html', rule=rule)
     return render_template(f'{page_name}.html')
 
 @app.route('/variable_list.html')
@@ -1098,6 +1101,50 @@ def delete_template_variable(id):
 @app.route('/meta_db_settings.html')
 def meta_db_settings_view():
     return redirect('/admin/meta_db_admin/')
+
+# DAG 명명 규칙 API
+@app.route('/api/dag-naming-rule', methods=['GET'])
+def get_dag_naming_rule():
+    import json
+    rule = DagNamingRule.query.first()
+    if not rule:
+        return jsonify({'status': 'ok', 'rule': None}), 200
+    return jsonify({
+        'status': 'ok',
+        'rule': {
+            'id': rule.id,
+            'rule_tokens': json.loads(rule.rule_tokens),
+            'separator': rule.separator,
+            'updated_at': rule.updated_at.strftime('%Y-%m-%d %H:%M:%S') if rule.updated_at else None
+        }
+    }), 200
+
+@app.route('/api/dag-naming-rule', methods=['POST'])
+def save_dag_naming_rule():
+    import json
+    data = request.json
+    rule_tokens = data.get('rule_tokens', [])
+    separator = data.get('separator', '_')
+
+    if not isinstance(rule_tokens, list) or len(rule_tokens) == 0:
+        return jsonify({'status': 'error', 'message': '규칙 토큰이 비어있습니다.'}), 400
+
+    try:
+        rule = DagNamingRule.query.first()
+        if rule:
+            rule.rule_tokens = json.dumps(rule_tokens, ensure_ascii=False)
+            rule.separator = separator
+        else:
+            rule = DagNamingRule(
+                rule_tokens=json.dumps(rule_tokens, ensure_ascii=False),
+                separator=separator
+            )
+            db.session.add(rule)
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'DAG 명명 규칙이 저장되었습니다.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def generate_formatted_sql(mapping):
     """Generates a formatted SQL query for a given mapping."""
@@ -1342,11 +1389,52 @@ def generate_dags():
                 dag_code = template_code
                 
                 # Filename & Dag Name Generation
-                safe_source = "".join([c if c.isalnum() or c in ('_', '-') else '_' for c in m_data['source_conn_name']])
-                safe_table = "".join([c if c.isalnum() or c in ('_', '-') else '_' for c in m_data['source_table']])
+                import json as _json
                 timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
-                dag_name = f"dag_{safe_source}_{safe_table}_{timestamp_str}"
+                naming_rule = DagNamingRule.query.first()
+
+                def _safe(s):
+                    return "".join([c if c.isalnum() or c in ('_', '-') else '_' for c in str(s or '')])
+
+                def _parse_schema_table(full_name):
+                    """OWNER.TABLE_NAME 형태면 분리, 아니면 schema='', table=full_name"""
+                    parts = str(full_name or '').split('.')
+                    if len(parts) >= 2:
+                        return parts[0], '.'.join(parts[1:])
+                    return '', full_name
+
+                src_schema, src_table_only = _parse_schema_table(m_data['source_table'])
+                tgt_schema, tgt_table_only = _parse_schema_table(m_data['target_table'])
+
+                if naming_rule and naming_rule.rule_tokens:
+                    try:
+                        tokens = _json.loads(naming_rule.rule_tokens)
+                        sep = naming_rule.separator or '_'
+                        parts = []
+                        for tok in tokens:
+                            t = tok.get('type')
+                            if t == 'src_schema':
+                                parts.append(_safe(src_schema or m_data['source_table'].split('.')[0]))
+                            elif t == 'src_table':
+                                parts.append(_safe(src_table_only or m_data['source_table']))
+                            elif t == 'tgt_schema':
+                                parts.append(_safe(tgt_schema or m_data['target_table'].split('.')[0]))
+                            elif t == 'tgt_table':
+                                parts.append(_safe(tgt_table_only or m_data['target_table']))
+                            elif t == 'src_db':
+                                parts.append(_safe(m_data['source_conn_name']))
+                            elif t == 'tgt_db':
+                                parts.append(_safe(m_data['target_conn_name']))
+                            elif t == 'timestamp':
+                                parts.append(timestamp_str)
+                            elif t == 'literal':
+                                parts.append(_safe(tok.get('value', '')))
+                        dag_name = sep.join(p for p in parts if p)
+                    except Exception:
+                        dag_name = f"dag_{_safe(m_data['source_conn_name'])}_{_safe(m_data['source_table'])}_{timestamp_str}"
+                else:
+                    dag_name = f"dag_{_safe(m_data['source_conn_name'])}_{_safe(m_data['source_table'])}_{timestamp_str}"
+
                 filename = f"{dag_name}.py"
                 filepath = os.path.join(output_dir, filename)
 

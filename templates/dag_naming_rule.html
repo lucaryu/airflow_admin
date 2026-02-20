@@ -1,0 +1,728 @@
+{% extends 'base.html' %}
+
+{% block title %}Toy Airflow - DAG 명명 규칙{% endblock %}
+
+{% block styles %}
+<style>
+    /* ===== 레이아웃 ===== */
+    .naming-rule-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    /* ===== 팔레트 패널 ===== */
+    .palette-panel {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: 20px;
+    }
+
+    .palette-panel h3 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        margin: 0 0 14px 0;
+    }
+
+    .palette-section {
+        margin-bottom: 20px;
+    }
+
+    .palette-section-title {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
+    }
+
+    .palette-token {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 6px;
+        transition: all 0.18s;
+        width: 100%;
+        text-align: left;
+    }
+
+    .palette-token:hover {
+        filter: brightness(1.2);
+    }
+
+    .palette-token .token-icon {
+        font-size: 14px;
+        width: 18px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .palette-token .token-label {
+        flex: 1;
+        line-height: 1.2;
+    }
+
+    .palette-token .token-desc {
+        font-size: 10px;
+        opacity: 0.65;
+        font-weight: 400;
+    }
+
+    .palette-token .add-icon {
+        font-size: 12px;
+        opacity: 0.5;
+    }
+
+    /* token type colors */
+    .tok-src {
+        background: rgba(76, 201, 240, 0.1);
+        border-color: rgba(76, 201, 240, 0.35);
+        color: #4cc9f0;
+    }
+
+    .tok-tgt {
+        background: rgba(144, 224, 147, 0.1);
+        border-color: rgba(144, 224, 147, 0.35);
+        color: #90e093;
+    }
+
+    .tok-meta {
+        background: rgba(255, 190, 64, 0.1);
+        border-color: rgba(255, 190, 64, 0.35);
+        color: #ffbe40;
+    }
+
+    .tok-time {
+        background: rgba(200, 143, 255, 0.1);
+        border-color: rgba(200, 143, 255, 0.35);
+        color: #c88fff;
+    }
+
+    .tok-fixed {
+        background: rgba(249, 115, 22, 0.1);
+        border-color: rgba(249, 115, 22, 0.32);
+        color: #f97316;
+    }
+
+    /* ===== 고정 문자 입력 영역 ===== */
+    .literal-input-row {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+    }
+
+    .literal-input-row input {
+        flex: 1;
+        background: #1a1a2e;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        border-radius: 5px;
+        padding: 7px 10px;
+        font-size: 13px;
+    }
+
+    .literal-input-row input:focus {
+        outline: none;
+        border-color: #f97316;
+    }
+
+    .literal-input-row button {
+        background: rgba(249, 115, 22, 0.15);
+        border: 1px solid rgba(249, 115, 22, 0.4);
+        color: #f97316;
+        border-radius: 5px;
+        padding: 7px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: background 0.18s;
+    }
+
+    .literal-input-row button:hover {
+        background: rgba(249, 115, 22, 0.28);
+    }
+
+    /* ===== 구분자 선택 ===== */
+    .separator-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+    }
+
+    .sep-btn {
+        padding: 6px 14px;
+        border-radius: 5px;
+        border: 1px solid #444;
+        background: #1a1a2e;
+        color: #aaa;
+        cursor: pointer;
+        font-size: 13px;
+        font-family: monospace;
+        transition: all 0.15s;
+    }
+
+    .sep-btn.active,
+    .sep-btn:hover {
+        border-color: #4cc9f0;
+        color: #4cc9f0;
+        background: rgba(76, 201, 240, 0.08);
+    }
+
+    /* ===== 빌더 패널 ===== */
+    .builder-panel {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: 24px;
+    }
+
+    .builder-panel h3 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary);
+        margin: 0 0 16px 0;
+    }
+
+    /* 규칙 빌더 드롭 존 */
+    .rule-builder-zone {
+        min-height: 72px;
+        background: #111122;
+        border: 2px dashed #333;
+        border-radius: 8px;
+        padding: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        transition: border-color 0.2s;
+        margin-bottom: 20px;
+    }
+
+    .rule-builder-zone.drag-over {
+        border-color: #4cc9f0;
+    }
+
+    .rule-builder-zone.empty-hint::before {
+        content: '← 왼쪽 팔레트에서 토큰을 클릭하여 추가하세요';
+        color: #444;
+        font-size: 13px;
+        pointer-events: none;
+    }
+
+    /* 빌더 안에 넣어진 토큰 */
+    .builder-token {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px 6px 12px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: grab;
+        user-select: none;
+        animation: popIn 0.15s ease;
+        transition: opacity 0.15s, transform 0.15s;
+        position: relative;
+    }
+
+    @keyframes popIn {
+        from {
+            transform: scale(0.7);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .builder-token:active {
+        cursor: grabbing;
+    }
+
+    .builder-token.dragging {
+        opacity: 0.35;
+    }
+
+    .builder-token .tok-remove {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        cursor: pointer;
+        font-size: 10px;
+        line-height: 1;
+        transition: background 0.15s;
+        flex-shrink: 0;
+    }
+
+    .builder-token .tok-remove:hover {
+        background: rgba(255, 80, 80, 0.5);
+    }
+
+    /* 구분자 시각화 */
+    .sep-divider {
+        color: #555;
+        font-size: 18px;
+        font-weight: 700;
+        padding: 0 2px;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    /* ===== 미리보기 ===== */
+    .preview-section {
+        background: #0d0d1a;
+        border: 1px solid #2a2a3e;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 24px;
+    }
+
+    .preview-label {
+        font-size: 11px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+    }
+
+    .preview-value {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 15px;
+        color: #4cc9f0;
+        word-break: break-all;
+        min-height: 22px;
+    }
+
+    /* ===== 구분자 섹션 (빌더 패널 내) ===== */
+    .section-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    /* ===== 저장 버튼 ===== */
+    .save-area {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* toast */
+    .toast-msg {
+        position: fixed;
+        bottom: 28px;
+        right: 28px;
+        background: #1e3a28;
+        border: 1px solid #2e6940;
+        color: #4ade80;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        animation: slideUp 0.25s ease;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .toast-msg.error {
+        background: #3a1e1e;
+        border-color: #6a2e2e;
+        color: #f87171;
+    }
+
+    @keyframes slideUp {
+        from {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1 class="page-title"><i class="fas fa-tag" style="margin-right:10px; color:#4cc9f0;"></i>DAG 명명 규칙 설정</h1>
+</header>
+
+<div class="content-body">
+    <div class="naming-rule-layout">
+
+        <!-- 팔레트 패널 -->
+        <div class="palette-panel">
+            <h3><i class="fas fa-cubes" style="margin-right:6px;"></i>사용 가능한 토큰</h3>
+
+            <div class="palette-section">
+                <div class="palette-section-title">소스</div>
+                <button class="palette-token tok-src"
+                    onclick="addToken('src_schema','소스 스키마','fas fa-layer-group','tok-src')">
+                    <i class="fas fa-layer-group token-icon"></i>
+                    <span class="token-label">소스 스키마<br><span class="token-desc">OWNER.TABLE → OWNER</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+                <button class="palette-token tok-src" onclick="addToken('src_table','소스 테이블','fas fa-table','tok-src')">
+                    <i class="fas fa-table token-icon"></i>
+                    <span class="token-label">소스 테이블<br><span class="token-desc">테이블명</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+                <button class="palette-token tok-src" onclick="addToken('src_db','소스 DB','fas fa-database','tok-src')">
+                    <i class="fas fa-database token-icon"></i>
+                    <span class="token-label">소스 DB<br><span class="token-desc">Connection 이름</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+            </div>
+
+            <div class="palette-section">
+                <div class="palette-section-title">타켓</div>
+                <button class="palette-token tok-tgt"
+                    onclick="addToken('tgt_schema','타켓 스키마','fas fa-layer-group','tok-tgt')">
+                    <i class="fas fa-layer-group token-icon"></i>
+                    <span class="token-label">타켓 스키마<br><span class="token-desc">OWNER.TABLE → OWNER</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+                <button class="palette-token tok-tgt" onclick="addToken('tgt_table','타켓 테이블','fas fa-table','tok-tgt')">
+                    <i class="fas fa-table token-icon"></i>
+                    <span class="token-label">타켓 테이블<br><span class="token-desc">테이블명</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+                <button class="palette-token tok-tgt" onclick="addToken('tgt_db','타켓 DB','fas fa-database','tok-tgt')">
+                    <i class="fas fa-database token-icon"></i>
+                    <span class="token-label">타켓 DB<br><span class="token-desc">Connection 이름</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+            </div>
+
+            <div class="palette-section">
+                <div class="palette-section-title">기타</div>
+                <button class="palette-token tok-time"
+                    onclick="addToken('timestamp','타임스탬프','fas fa-clock','tok-time')">
+                    <i class="fas fa-clock token-icon"></i>
+                    <span class="token-label">타임스탬프<br><span class="token-desc">YYYYMMDD_HHMMSS</span></span>
+                    <i class="fas fa-plus add-icon"></i>
+                </button>
+            </div>
+
+            <div class="palette-section">
+                <div class="palette-section-title">고정 문자</div>
+                <div class="literal-input-row">
+                    <input type="text" id="literalInput" placeholder="예: ETL, dag, v2" maxlength="30"
+                        onkeydown="if(event.key==='Enter') addLiteral()">
+                    <button onclick="addLiteral()" title="추가"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 빌더 패널 -->
+        <div class="builder-panel">
+            <h3><i class="fas fa-wrench" style="margin-right:6px;"></i>명명 규칙 구성</h3>
+
+            <!-- 드롭 존 -->
+            <div id="ruleBuilderZone" class="rule-builder-zone empty-hint" ondragover="handleDragOver(event)"
+                ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+            </div>
+
+            <!-- 구분자 -->
+            <div class="section-label"><i class="fas fa-grip-lines-vertical" style="margin-right:5px;"></i>구분자</div>
+            <div class="separator-row" id="separatorBtns">
+                <button class="sep-btn active" data-sep="_" onclick="setSep(this)">_ 언더스코어</button>
+                <button class="sep-btn" data-sep="-" onclick="setSep(this)">- 하이픈</button>
+                <button class="sep-btn" data-sep="." onclick="setSep(this)">. 점</button>
+                <button class="sep-btn" data-sep="" onclick="setSep(this)">없음</button>
+            </div>
+
+            <br>
+
+            <!-- 미리보기 -->
+            <div class="preview-section">
+                <div class="preview-label"><i class="fas fa-eye" style="margin-right:5px;"></i>미리보기 (파일명)</div>
+                <div class="preview-value" id="previewValue">규칙을 구성하면 미리보기가 표시됩니다</div>
+            </div>
+
+            <!-- 저장 영역 -->
+            <div class="save-area">
+                <button class="btn" style="background:#2a2a3e; border:1px solid #444; color:#aaa;"
+                    onclick="resetRule()">
+                    <i class="fas fa-undo"></i> 초기화
+                </button>
+                <button class="btn btn-primary" onclick="saveRule()">
+                    <i class="fas fa-save"></i> 저장
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    /* ======================== STATE ======================== */
+    let ruleTokens = [];    // [{type, label, icon, colorClass, value?}]
+    let separator = '_';
+    let dragSrcIdx = null;
+
+    /* ======================== 초기 로드 ======================== */
+    document.addEventListener('DOMContentLoaded', () => {
+        loadRule();
+    });
+
+    async function loadRule() {
+        try {
+            const res = await fetch('/api/dag-naming-rule');
+            const data = await res.json();
+            if (data.rule) {
+                separator = data.rule.separator || '_';
+                // separator 버튼 활성화
+                document.querySelectorAll('.sep-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.sep === separator);
+                });
+                // 토큰 복원
+                const colorMap = {
+                    src_schema: 'tok-src', src_table: 'tok-src', src_db: 'tok-src',
+                    tgt_schema: 'tok-tgt', tgt_table: 'tok-tgt', tgt_db: 'tok-tgt',
+                    timestamp: 'tok-time', literal: 'tok-fixed'
+                };
+                const iconMap = {
+                    src_schema: 'fas fa-layer-group', src_table: 'fas fa-table', src_db: 'fas fa-database',
+                    tgt_schema: 'fas fa-layer-group', tgt_table: 'fas fa-table', tgt_db: 'fas fa-database',
+                    timestamp: 'fas fa-clock', literal: 'fas fa-font'
+                };
+                const labelMap = {
+                    src_schema: '소스 스키마', src_table: '소스 테이블', src_db: '소스 DB',
+                    tgt_schema: '타켓 스키마', tgt_table: '타켓 테이블', tgt_db: '타켓 DB',
+                    timestamp: '타임스탬프'
+                };
+                for (const tok of data.rule.rule_tokens) {
+                    const label = tok.type === 'literal' ? tok.value : (labelMap[tok.type] || tok.type);
+                    ruleTokens.push({
+                        type: tok.type,
+                        label: label,
+                        icon: iconMap[tok.type] || 'fas fa-cube',
+                        colorClass: colorMap[tok.type] || 'tok-meta',
+                        value: tok.value || null
+                    });
+                }
+                renderBuilder();
+            }
+        } catch (e) {
+            console.error('규칙 로드 실패', e);
+        }
+    }
+
+    /* ======================== 팔레트 토큰 추가 ======================== */
+    function addToken(type, label, icon, colorClass, value) {
+        ruleTokens.push({ type, label: value || label, icon, colorClass, value: value || null });
+        renderBuilder();
+    }
+
+    function addLiteral() {
+        const input = document.getElementById('literalInput');
+        const val = input.value.trim();
+        if (!val) { input.focus(); return; }
+        ruleTokens.push({ type: 'literal', label: val, icon: 'fas fa-font', colorClass: 'tok-fixed', value: val });
+        input.value = '';
+        renderBuilder();
+    }
+
+    /* ======================== 구분자 ======================== */
+    function setSep(btn) {
+        document.querySelectorAll('.sep-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        separator = btn.dataset.sep;
+        updatePreview();
+    }
+
+    /* ======================== 렌더링 ======================== */
+    function renderBuilder() {
+        const zone = document.getElementById('ruleBuilderZone');
+
+        if (ruleTokens.length === 0) {
+            zone.innerHTML = '';
+            zone.classList.add('empty-hint');
+            updatePreview();
+            return;
+        }
+
+        zone.classList.remove('empty-hint');
+        zone.innerHTML = '';
+
+        ruleTokens.forEach((tok, idx) => {
+            // 구분자 표시 (첫 토큰 제외)
+            if (idx > 0 && separator !== '') {
+                const div = document.createElement('span');
+                div.className = 'sep-divider';
+                div.textContent = separator;
+                zone.appendChild(div);
+            }
+
+            const el = document.createElement('div');
+            el.className = `builder-token ${tok.colorClass}`;
+            el.draggable = true;
+            el.dataset.idx = idx;
+            el.innerHTML = `
+            <i class="${tok.icon}" style="font-size:12px;"></i>
+            <span>${escHtml(tok.label)}</span>
+            <span class="tok-remove" onclick="removeToken(${idx})" title="제거">✕</span>
+        `;
+            el.addEventListener('dragstart', e => startDrag(e, idx));
+            el.addEventListener('dragend', () => el.classList.remove('dragging'));
+            zone.appendChild(el);
+        });
+
+        updatePreview();
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /* ======================== 미리보기 ======================== */
+    const PREVIEW_MAP = {
+        src_schema: 'MYSCHEMA', src_table: 'EMPLOYEE', src_db: 'Oracle_Prod_DB',
+        tgt_schema: 'DW', tgt_table: 'DIM_EMPLOYEE', tgt_db: 'Postgres_DW',
+        timestamp: '20260220_135501'
+    };
+
+    function updatePreview() {
+        const el = document.getElementById('previewValue');
+        if (ruleTokens.length === 0) {
+            el.textContent = '규칙을 구성하면 미리보기가 표시됩니다';
+            return;
+        }
+        const parts = ruleTokens.map(tok => {
+            if (tok.type === 'literal') return tok.value || '';
+            return PREVIEW_MAP[tok.type] || tok.type;
+        }).filter(Boolean);
+        el.textContent = parts.join(separator) + '.py';
+    }
+
+    /* ======================== 드래그 앤 드롭 ======================== */
+    function startDrag(e, idx) {
+        dragSrcIdx = idx;
+        e.currentTarget.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.getElementById('ruleBuilderZone').classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        document.getElementById('ruleBuilderZone').classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        document.getElementById('ruleBuilderZone').classList.remove('drag-over');
+        if (dragSrcIdx === null) return;
+
+        // 드롭 위치 계산
+        const zone = document.getElementById('ruleBuilderZone');
+        const builderEls = [...zone.querySelectorAll('.builder-token')];
+        let destIdx = ruleTokens.length;
+
+        for (const el of builderEls) {
+            const rect = el.getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+                destIdx = parseInt(el.dataset.idx);
+                break;
+            }
+        }
+
+        if (destIdx !== dragSrcIdx) {
+            const moved = ruleTokens.splice(dragSrcIdx, 1)[0];
+            const insertAt = destIdx > dragSrcIdx ? destIdx - 1 : destIdx;
+            ruleTokens.splice(insertAt, 0, moved);
+            renderBuilder();
+        }
+
+        dragSrcIdx = null;
+    }
+
+    /* ======================== 토큰 제거 ======================== */
+    function removeToken(idx) {
+        ruleTokens.splice(idx, 1);
+        renderBuilder();
+    }
+
+    /* ======================== 초기화 ======================== */
+    function resetRule() {
+        if (ruleTokens.length > 0 && !confirm('규칙을 모두 초기화하시겠습니까?')) return;
+        ruleTokens = [];
+        separator = '_';
+        document.querySelectorAll('.sep-btn').forEach(b => b.classList.toggle('active', b.dataset.sep === '_'));
+        renderBuilder();
+    }
+
+    /* ======================== 저장 ======================== */
+    async function saveRule() {
+        if (ruleTokens.length === 0) {
+            showToast('저장할 규칙 토큰이 없습니다.', true);
+            return;
+        }
+
+        const payload = {
+            rule_tokens: ruleTokens.map(tok => ({
+                type: tok.type,
+                value: tok.value || null
+            })),
+            separator: separator
+        };
+
+        try {
+            const res = await fetch('/api/dag-naming-rule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast('DAG 명명 규칙이 저장되었습니다!');
+            } else {
+                showToast(data.message || '저장 실패', true);
+            }
+        } catch (e) {
+            showToast('저장 중 오류가 발생했습니다.', true);
+        }
+    }
+
+    /* ======================== 토스트 ======================== */
+    function showToast(msg, isError = false) {
+        const existing = document.querySelector('.toast-msg');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-msg' + (isError ? ' error' : '');
+        toast.innerHTML = `<i class="fas fa-${isError ? 'exclamation-circle' : 'check-circle'}"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+</script>
+{% endblock %}
