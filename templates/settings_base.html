@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Settings - Toy Airflow{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Local Static Assets -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <style>
+        /* Global Settings Button Style */
+        .global-settings-container {
+            position: absolute;
+            top: 32px;
+            right: 32px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            height: 38px;
+        }
+
+        .settings-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+        }
+
+        .settings-btn:hover,
+        .settings-btn.active {
+            background-color: var(--hover-bg);
+            border-color: var(--primary-color);
+        }
+
+        /* Prevent header content from overlapping with settings icon */
+        .page-header {
+            padding-right: 60px;
+        }
+
+        /* Settings specific Layout */
+        .settings-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        /* Sidebar override for Settings */
+        .settings-sidebar {
+            width: 250px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .settings-sidebar-header {
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-sidebar-header a {
+            color: inherit;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-nav-menu {
+            list-style: none;
+            padding: 10px 0;
+            margin: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .settings-nav-item {
+            margin-bottom: 5px;
+        }
+
+        .settings-nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .settings-nav-link:hover {
+            background-color: var(--hover-bg);
+            color: var(--text-primary);
+        }
+
+        .settings-nav-link.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: var(--primary-color);
+            border-left-color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .settings-nav-icon {
+            width: 24px;
+            margin-right: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        /* Main Context Override */
+        .settings-main-content {
+            flex-grow: 1;
+            padding: 32px;
+            overflow-y: auto;
+            background-color: var(--bg-color);
+            position: relative;
+        }
+    </style>
+    {% block styles %}{% endblock %}
+</head>
+
+<body>
+    <div class="settings-container">
+        <!-- Settings Sidebar -->
+        <aside class="settings-sidebar">
+            <div class="settings-sidebar-header">
+                <a href="{{ url_for('mappings.index') }}" title="Back to Main">
+                    <i class="fas fa-arrow-left"></i>
+                    Settings
+                </a>
+            </div>
+            <ul class="settings-nav-menu">
+                <li class="settings-nav-item">
+                    <a href="{{ url_for('connections.index_view') }}"
+                        class="settings-nav-link {% if request.endpoint and 'connections' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-plug settings-nav-icon"></i>
+                        Connections
+                    </a>
+                </li>
+                <li class="settings-nav-item">
+                    <a href="{{ url_for('dag_template_view') }}"
+                        class="settings-nav-link {% if request.endpoint and 'dag_template' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-layer-group settings-nav-icon"></i>
+                        Templates
+                    </a>
+                </li>
+                <li class="settings-nav-item">
+                    <a href="{{ url_for('variable_list_view') }}"
+                        class="settings-nav-link {% if request.endpoint and 'variable_list' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-code settings-nav-icon"></i>
+                        Temp Variables
+                    </a>
+                </li>
+                <li class="settings-nav-item">
+                    <a href="{{ url_for('meta_db_admin.index') }}"
+                        class="settings-nav-link {% if request.endpoint and 'meta_db' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-database settings-nav-icon"></i>
+                        Meta DB
+                    </a>
+                </li>
+                <li class="settings-nav-item">
+                    <a href="{{ url_for('serve_pages', page_name='dag_naming_rule') }}"
+                        class="settings-nav-link {% if request.path == '/dag_naming_rule.html' %}active{% endif %}">
+                        <i class="fas fa-tag settings-nav-icon"></i>
+                        DAG Naming Rule
+                    </a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="settings-main-content">
+            <!-- Global Setting Button (Link to Settings Home / Connections) -->
+            <div class="global-settings-container">
+                <a href="{{ url_for('connections.index_view') }}" class="settings-btn active" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </a>
+            </div>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Global Scripts -->
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=4"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
