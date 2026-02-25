@@ -1,8 +1,10 @@
 from flask import Flask, redirect, url_for, render_template, request, jsonify, send_file
 from flask_admin import Admin, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
-from models import db, Connection, Mapping, MappingColumn, Template, GeneratedDAG, MetaDB
+from models import db, Connection, Mapping, MappingColumn, Template, GeneratedDAG, MetaDB, CustomOperator
 import os
+import subprocess
+import tempfile
 from datetime import datetime
 
 app = Flask(__name__)
@@ -120,7 +122,7 @@ class ConnectionView(ModelView):
 # Setup Admin
 admin = Admin(app, name='Toy Airflow', url='/admin')
 
-from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG, MetaDB, DagNamingRule
+from models import db, Connection, Mapping, MappingColumn, Template, TemplateVariable, GeneratedDAG, MetaDB, DagNamingRule, CustomOperator
 
 class MappingView(BaseView):
     @expose('/')
@@ -791,10 +793,16 @@ class MetaDBView(BaseView):
             'username': meta.username
         })
 
+class OperatorPlaygroundView(BaseView):
+    @expose('/')
+    def index(self):
+        return self.render('operator_playground.html')
+
 # Register views
 admin.add_view(ConnectionView(Connection, db.session, name='Connections', endpoint='connections'))
 admin.add_view(MappingView(name='Mappings', endpoint='mappings'))
 admin.add_view(MetaDBView(name='Meta DB', endpoint='meta_db_admin'))
+admin.add_view(OperatorPlaygroundView(name='Operator Playground', endpoint='operator_playground'))
 
 @app.route('/api/mappings/bulk_delete', methods=['POST'])
 def bulk_delete_mappings():
@@ -1551,6 +1559,101 @@ def generate_dags():
             log_file.write(f"CRITICAL ERROR: {e}\n{tb}\n")
             
         return {'status': 'error', 'message': f'Server Error: {str(e)}'}, 500
+
+@app.route('/api/operators', methods=['GET'])
+def get_operators():
+    ops = CustomOperator.query.order_by(CustomOperator.updated_at.desc()).all()
+    return jsonify([{'id': op.id, 'name': op.name, 'description': op.description, 'updated_at': op.updated_at.isoformat()} for op in ops])
+
+@app.route('/api/operators/<int:id>', methods=['GET'])
+def get_operator(id):
+    op = CustomOperator.query.get_or_404(id)
+    return jsonify({'id': op.id, 'name': op.name, 'description': op.description, 'code': op.code})
+
+@app.route('/api/operators', methods=['POST'])
+def create_operator():
+    data = request.get_json()
+    new_op = CustomOperator(name=data['name'], description=data.get('description', ''), code=data.get('code', ''))
+    db.session.add(new_op)
+    db.session.commit()
+    return jsonify({'message': 'Operator saved successfully', 'id': new_op.id}), 201
+
+@app.route('/api/operators/<int:id>', methods=['PUT'])
+def update_operator(id):
+    op = CustomOperator.query.get_or_404(id)
+    data = request.get_json()
+    op.name = data.get('name', op.name)
+    op.description = data.get('description', op.description)
+    op.code = data.get('code', op.code)
+    db.session.commit()
+    return jsonify({'message': 'Operator updated successfully'})
+
+@app.route('/api/operators/<int:id>', methods=['DELETE'])
+def delete_operator(id):
+    op = CustomOperator.query.get_or_404(id)
+    db.session.delete(op)
+    db.session.commit()
+    return jsonify({'message': 'Operator deleted successfully'})
+
+@app.route('/api/run_code', methods=['POST'])
+def run_code():
+    data = request.get_json()
+    code = data.get('code', '')
+    if not code:
+        return jsonify({'error': 'No code provided'}), 400
+
+    mock_prefix = """import sys
+from unittest.mock import MagicMock
+import types
+
+class MockModule(types.ModuleType):
+    def __getattr__(self, name):
+        if name in ('__path__', '__file__'): return []
+        return MagicMock()
+
+class MockImporter:
+    def find_spec(self, fullname, path, target=None):
+        if fullname.split('.')[0] in ['airflow', 'pendulum', 'operators']:
+            import importlib.machinery
+            class MockLoader(importlib.machinery.BuiltinImporter):
+                @classmethod
+                def exec_module(cls, module):
+                    pass
+                @classmethod
+                def create_module(cls, spec):
+                    return MockModule(spec.name)
+            return importlib.machinery.ModuleSpec(fullname, MockLoader)
+        return None
+
+sys.meta_path.insert(0, MockImporter())
+"""
+        
+    # Write code to a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as temp_file:
+        temp_file.write(mock_prefix + "\n" + code)
+        temp_filepath = temp_file.name
+
+    try:
+        # Run the code using subprocess
+        result = subprocess.run(
+            ['python', temp_filepath],
+            capture_output=True,
+            text=True,
+            timeout=30 # 30 seconds timeout
+        )
+        return jsonify({
+            'stdout': result.stdout,
+            'stderr': result.stderr,
+            'returncode': result.returncode
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Execution timed out', 'stderr': 'Execution timed out after 30 seconds'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e), 'stderr': str(e)}), 500
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_filepath):
+            os.remove(temp_filepath)
 
 if __name__ == '__main__':
     with app.app_context():

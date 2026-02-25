@@ -115,3 +115,13 @@ class DagNamingRule(db.Model):
 
     def __repr__(self):
         return f'<DagNamingRule id={self.id}>'
+
+class CustomOperator(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    code = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f'<CustomOperator {self.name}>'

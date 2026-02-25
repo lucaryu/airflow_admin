@@ -1,0 +1,435 @@
+{% extends 'base.html' %}
+
+{% block title %}Operator Playground - Toy Airflow{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/codemirror.min.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/dracula.min.css') }}">
+<style>
+    .playground-container {
+        display: flex;
+        height: calc(100vh - 80px);
+        /* Adjust based on your header height */
+        gap: 20px;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .op-sidebar {
+        width: 300px;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .op-sidebar-header {
+        padding: 15px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: var(--table-header-bg);
+    }
+
+    .op-sidebar-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-primary);
+    }
+
+    .btn-new {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .btn-new:hover {
+        opacity: 0.9;
+    }
+
+    .op-list {
+        flex: 1;
+        overflow-y: auto;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .op-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .op-item:hover,
+    .op-item.active {
+        background-color: var(--hover-bg);
+        border-right: 3px solid var(--primary-color);
+    }
+
+    .op-item-title {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+        word-break: break-all;
+    }
+
+    .op-item-date {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .op-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        min-width: 0;
+    }
+
+    .op-header {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .op-header-row {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .op-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        background-color: var(--bg-color);
+        color: var(--text-primary);
+    }
+
+    .op-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 500;
+    }
+
+    .btn-save {
+        background-color: var(--success-color);
+        color: white;
+    }
+
+    .btn-run {
+        background-color: var(--primary-color);
+        color: white;
+    }
+
+    .btn-delete {
+        background-color: var(--danger-color);
+        color: white;
+    }
+
+    .op-editor-container {
+        flex: 1;
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .CodeMirror {
+        flex: 1;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 14px;
+        height: auto;
+    }
+
+    .op-console {
+        height: 200px;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .op-console-header {
+        background-color: #2d2d2d;
+        padding: 8px 15px;
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .op-console-body {
+        flex: 1;
+        padding: 10px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 13px;
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    .console-success {
+        color: #4CAF50;
+    }
+
+    .console-error {
+        color: #f44336;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="playground-container">
+    <div class="op-sidebar">
+        <div class="op-sidebar-header">
+            <h3>Operators</h3>
+            <button class="btn-new" onclick="createNew()"><i class="fas fa-plus"></i> New</button>
+        </div>
+        <ul class="op-list" id="operatorList">
+            <!-- List populates here -->
+        </ul>
+    </div>
+
+    <div class="op-main">
+        <div class="op-header">
+            <div class="op-header-row">
+                <input type="text" id="opName" class="op-input"
+                    placeholder="Operator Name (e.g., custom_mysql_operator)">
+                <div class="op-actions">
+                    <button class="btn btn-save" onclick="saveOperator()"><i class="fas fa-save"></i> Save</button>
+                    <button class="btn btn-delete" onclick="deleteOperator()" id="btnDelete" style="display:none;"><i
+                            class="fas fa-trash"></i> Delete</button>
+                    <button class="btn btn-run" onclick="runCode()"><i class="fas fa-play"></i> Run</button>
+                </div>
+            </div>
+            <div class="op-header-row">
+                <input type="text" id="opDesc" class="op-input" placeholder="Description (Optional)">
+            </div>
+        </div>
+
+        <div class="op-editor-container">
+            <textarea id="codeEditor"></textarea>
+        </div>
+
+        <div class="op-console">
+            <div class="op-console-header">
+                <span><i class="fas fa-terminal"></i> Output Console</span>
+                <span id="consoleStatus">Ready</span>
+            </div>
+            <pre class="op-console-body" id="consoleOutput">Execution results will appear here...</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/codemirror/js/codemirror.min.js') }}"></script>
+<!-- Assuming mode/python exists, if not code will just be plaintext. We'll use python.js if available. -->
+<script src="{{ url_for('static', filename='vendor/codemirror/js/mode/python/python.js') }}"
+    onerror="this.remove()"></script>
+<script>
+    let currentOperatorId = null;
+    let editor;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Init CodeMirror
+        editor = CodeMirror.fromTextArea(document.getElementById("codeEditor"), {
+            lineNumbers: true,
+            theme: "dracula",
+            mode: "python",
+            indentUnit: 4,
+            matchBrackets: true
+        });
+
+        loadOperators();
+    });
+
+    function createNew() {
+        currentOperatorId = null;
+        document.getElementById('opName').value = '';
+        document.getElementById('opDesc').value = '';
+        editor.setValue('# Write your custom operator or DAG code here\n\n');
+        document.getElementById('btnDelete').style.display = 'none';
+        document.getElementById('consoleOutput').textContent = 'Execution results will appear here...';
+
+        // Remove active class from list
+        document.querySelectorAll('.op-item').forEach(el => el.classList.remove('active'));
+    }
+
+    async function loadOperators() {
+        try {
+            const res = await fetch('/api/operators');
+            const data = await res.json();
+            const listEl = document.getElementById('operatorList');
+            listEl.innerHTML = '';
+
+            data.forEach(op => {
+                const li = document.createElement('li');
+                li.className = 'op-item';
+                if (op.id === currentOperatorId) li.classList.add('active');
+
+                const dateObj = new Date(op.updated_at);
+
+                li.innerHTML = `
+                    <div class="op-item-title">${op.name}</div>
+                    <div class="op-item-date">${dateObj.toLocaleString()}</div>
+                `;
+                li.onclick = () => loadOperator(op.id);
+                listEl.appendChild(li);
+            });
+        } catch (e) {
+            console.error('Failed to load operators', e);
+        }
+    }
+
+    async function loadOperator(id) {
+        try {
+            const res = await fetch(`/api/operators/${id}`);
+            const data = await res.json();
+
+            currentOperatorId = data.id;
+            document.getElementById('opName').value = data.name;
+            document.getElementById('opDesc').value = data.description || '';
+            editor.setValue(data.code || '');
+
+            document.getElementById('btnDelete').style.display = 'flex';
+
+            // Update active state in UI
+            document.querySelectorAll('.op-item').forEach(el => el.classList.remove('active'));
+            loadOperators(); // reload to set active
+        } catch (e) {
+            console.error('Failed to load operator details', e);
+        }
+    }
+
+    async function saveOperator() {
+        const name = document.getElementById('opName').value.trim();
+        const desc = document.getElementById('opDesc').value.trim();
+        const code = editor.getValue();
+
+        if (!name) {
+            alert('Please enter an operator name.');
+            return;
+        }
+
+        const payload = { name, description: desc, code };
+        const method = currentOperatorId ? 'PUT' : 'POST';
+        const url = currentOperatorId ? `/api/operators/${currentOperatorId}` : '/api/operators';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (!currentOperatorId && data.id) {
+                    currentOperatorId = data.id;
+                    document.getElementById('btnDelete').style.display = 'flex';
+                }
+                loadOperators();
+                alert('Saved successfully!');
+            } else {
+                alert('Error keeping record: ' + (data.message || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Failed to save operator.');
+        }
+    }
+
+    async function deleteOperator() {
+        if (!currentOperatorId) return;
+        if (!confirm('Are you sure you want to delete this operator?')) return;
+
+        try {
+            const res = await fetch(`/api/operators/${currentOperatorId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                createNew();
+                loadOperators();
+            } else {
+                alert('Failed to delete.');
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    async function runCode() {
+        const code = editor.getValue();
+        if (!code.trim()) return;
+
+        const outEl = document.getElementById('consoleOutput');
+        const statusEl = document.getElementById('consoleStatus');
+
+        outEl.textContent = 'Running...';
+        outEl.className = 'op-console-body';
+        statusEl.textContent = 'Executing';
+        statusEl.style.color = '#ffeb3b';
+
+        try {
+            const res = await fetch('/api/run_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                let text = '';
+                if (data.stdout) text += data.stdout;
+                if (data.stderr) text += '\n[STDERR]\n' + data.stderr;
+                outEl.textContent = text || 'Program exited with no output.';
+                outEl.className = data.returncode === 0 ? 'op-console-body console-success' : 'op-console-body console-error';
+                statusEl.textContent = data.returncode === 0 ? 'Success' : 'Error';
+                statusEl.style.color = data.returncode === 0 ? '#4CAF50' : '#f44336';
+            } else {
+                outEl.textContent = data.stderr || data.error || 'Server error occurred.';
+                outEl.className = 'op-console-body console-error';
+                statusEl.textContent = 'Failed';
+                statusEl.style.color = '#f44336';
+            }
+        } catch (e) {
+            outEl.textContent = 'Network or server error: ' + e.message;
+            outEl.className = 'op-console-body console-error';
+            statusEl.textContent = 'Failed';
+            statusEl.style.color = '#f44336';
+        }
+    }
+</script>
+{% endblock %}

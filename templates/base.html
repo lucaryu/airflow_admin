@@ -120,6 +120,13 @@
                         DAGs
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('operator_playground.index') }}"
+                        class="nav-link {% if request.endpoint and 'operator' in request.endpoint %}active{% endif %}">
+                        <i class="fas fa-keyboard nav-icon"></i>
+                        Playground
+                    </a>
+                </li>
             </ul>
         </aside>
 
