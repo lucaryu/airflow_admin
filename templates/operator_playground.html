@@ -6,17 +6,16 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/codemirror.min.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/codemirror/css/dracula.min.css') }}">
 <style>
-    .playground-container {
+    .playground-wrapper {
         display: flex;
         height: calc(100vh - 80px);
-        /* Adjust based on your header height */
-        gap: 20px;
-        padding: 20px;
+        gap: 15px;
+        padding: 75px 15px 15px 15px;
         box-sizing: border-box;
     }
 
     .op-sidebar {
-        width: 300px;
+        width: 250px;
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius);
@@ -40,7 +39,7 @@
         color: var(--text-primary);
     }
 
-    .btn-new {
+    .btn-action {
         background-color: var(--primary-color);
         color: white;
         border: none;
@@ -48,10 +47,26 @@
         border-radius: var(--border-radius);
         cursor: pointer;
         font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
     }
 
-    .btn-new:hover {
+    .btn-action:hover {
         opacity: 0.9;
+    }
+
+    .btn-danger {
+        background-color: var(--danger-color);
+    }
+
+    .btn-success {
+        background-color: var(--success-color);
+    }
+
+    .btn-warning {
+        background-color: #ff9800;
+        color: #fff;
     }
 
     .op-list {
@@ -78,13 +93,7 @@
     .op-item-title {
         font-weight: 500;
         color: var(--text-primary);
-        margin-bottom: 4px;
         word-break: break-all;
-    }
-
-    .op-item-date {
-        font-size: 11px;
-        color: var(--text-secondary);
     }
 
     .op-main {
@@ -107,12 +116,13 @@
 
     .op-header-row {
         display: flex;
-        gap: 15px;
+        justify-content: space-between;
         align-items: center;
+        gap: 15px;
     }
 
     .op-input {
-        flex: 1;
+        width: 300px;
         padding: 8px 12px;
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius);
@@ -123,130 +133,252 @@
     .op-actions {
         display: flex;
         gap: 10px;
+        align-items: center;
     }
 
-    .btn {
-        padding: 8px 16px;
-        border: none;
-        border-radius: var(--border-radius);
-        cursor: pointer;
+    .kernel-status {
         display: flex;
         align-items: center;
         gap: 6px;
-        font-weight: 500;
+        font-size: 13px;
+        padding: 5px 10px;
+        border-radius: 12px;
+        background-color: var(--bg-color);
+        border: 1px solid var(--border-color);
     }
 
-    .btn-save {
-        background-color: var(--success-color);
-        color: white;
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #4CAF50;
+        /* idle */
     }
 
-    .btn-run {
-        background-color: var(--primary-color);
-        color: white;
+    .status-dot.busy {
+        background-color: #ffeb3b;
     }
 
-    .btn-delete {
-        background-color: var(--danger-color);
-        color: white;
+    .status-dot.error {
+        background-color: #f44336;
     }
 
-    .op-editor-container {
+    .notebook-container {
         flex: 1;
-        background-color: var(--card-bg);
+        background-color: var(--bg-color);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius);
+        padding: 20px;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Cells */
+    .cell {
+        display: flex;
+        gap: 10px;
+    }
+
+    .cell-gutter {
+        width: 50px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        padding-top: 10px;
+        font-family: monospace;
+        color: var(--text-secondary);
+    }
+
+    .btn-run-cell {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        margin-top: 8px;
+        font-size: 16px;
+    }
+
+    .btn-run-cell:hover {
+        color: var(--primary-color);
+    }
+
+    .btn-del-cell {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        margin-top: 8px;
+        font-size: 14px;
+    }
+
+    .btn-del-cell:hover {
+        color: var(--danger-color);
+    }
+
+    .cell-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
         overflow: hidden;
+        background-color: #282a36;
+        /* dracula bg */
     }
 
     .CodeMirror {
-        flex: 1;
+        height: auto;
+        min-height: 50px;
         font-family: 'Consolas', 'Courier New', monospace;
         font-size: 14px;
-        height: auto;
     }
 
-    .op-console {
-        height: 200px;
+    .cell-output {
+        padding: 10px;
         background-color: #1e1e1e;
         color: #d4d4d4;
+        font-family: 'Consolas', monospace;
+        font-size: 13px;
+        white-space: pre-wrap;
+        border-top: 1px solid var(--border-color);
+        display: none;
+    }
+
+    .cell-output.has-content {
+        display: block;
+    }
+
+    .out-error {
+        color: #ff5555;
+    }
+
+    .out-stream {
+        color: #d4d4d4;
+    }
+
+    .out-result {
+        color: #50fa7b;
+    }
+
+    /* Right Context sidebar */
+    .context-sidebar {
+        width: 250px;
+        background-color: var(--card-bg);
         border: 1px solid var(--border-color);
         border-radius: var(--border-radius);
+        padding: 15px;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        gap: 15px;
+        overflow-y: auto;
     }
 
-    .op-console-header {
-        background-color: #2d2d2d;
-        padding: 8px 15px;
+    .context-card {
+        background-color: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 10px;
+    }
+
+    .context-card h4 {
+        margin: 0 0 10px 0;
+        color: var(--text-primary);
+        font-size: 13px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 5px;
+    }
+
+    .context-item {
         font-size: 12px;
+        margin-bottom: 5px;
+        color: var(--text-secondary);
         display: flex;
         justify-content: space-between;
-        align-items: center;
     }
 
-    .op-console-body {
-        flex: 1;
-        padding: 10px;
-        overflow-y: auto;
-        font-family: 'Consolas', 'Courier New', monospace;
-        font-size: 13px;
-        margin: 0;
-        white-space: pre-wrap;
-    }
-
-    .console-success {
-        color: #4CAF50;
-    }
-
-    .console-error {
-        color: #f44336;
+    .context-item span:first-child {
+        font-weight: 500;
+        color: var(--text-primary);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="playground-container">
+<div class="playground-wrapper">
+    <!-- Left Sidebar: Saved Operators -->
     <div class="op-sidebar">
         <div class="op-sidebar-header">
             <h3>Operators</h3>
-            <button class="btn-new" onclick="createNew()"><i class="fas fa-plus"></i> New</button>
+            <button class="btn-action" onclick="createNew()"><i class="fas fa-plus"></i> New</button>
         </div>
         <ul class="op-list" id="operatorList">
-            <!-- List populates here -->
+            <!-- Populated via JS -->
         </ul>
     </div>
 
+    <!-- Main Workspace -->
     <div class="op-main">
         <div class="op-header">
             <div class="op-header-row">
-                <input type="text" id="opName" class="op-input"
-                    placeholder="Operator Name (e.g., custom_mysql_operator)">
+                <input type="text" id="opName" class="op-input" placeholder="Operator Name (e.g., custom_etl)">
                 <div class="op-actions">
-                    <button class="btn btn-save" onclick="saveOperator()"><i class="fas fa-save"></i> Save</button>
-                    <button class="btn btn-delete" onclick="deleteOperator()" id="btnDelete" style="display:none;"><i
-                            class="fas fa-trash"></i> Delete</button>
-                    <button class="btn btn-run" onclick="runCode()"><i class="fas fa-play"></i> Run</button>
+                    <div class="kernel-status" id="kernelStatus">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">Python 3 (idle)</span>
+                    </div>
                 </div>
             </div>
             <div class="op-header-row">
-                <input type="text" id="opDesc" class="op-input" placeholder="Description (Optional)">
+                <input type="text" id="opDesc" class="op-input" placeholder="Description (Optional)"
+                    style="width: 100%;">
+            </div>
+            <div class="op-header-row">
+                <div class="op-actions">
+                    <button class="btn-action btn-success" onclick="saveOperator()"><i class="fas fa-save"></i>
+                        Save</button>
+                    <button class="btn-action btn-danger" onclick="deleteOperator()" id="btnDelete"
+                        style="display:none;"><i class="fas fa-trash"></i> Delete</button>
+                </div>
+                <div class="op-actions">
+                    <button class="btn-action" onclick="addCell()"><i class="fas fa-plus"></i> Add Cell</button>
+                    <button class="btn-action btn-warning" onclick="restartKernel()"><i class="fas fa-sync-alt"></i>
+                        Restart Kernel</button>
+                </div>
             </div>
         </div>
 
-        <div class="op-editor-container">
-            <textarea id="codeEditor"></textarea>
+        <div class="notebook-container" id="notebook">
+            <!-- Cells will be dynamic -->
         </div>
+    </div>
 
-        <div class="op-console">
-            <div class="op-console-header">
-                <span><i class="fas fa-terminal"></i> Output Console</span>
-                <span id="consoleStatus">Ready</span>
+    <!-- Right Sidebar: Airflow Context Info -->
+    <div class="context-sidebar">
+        <h3 style="margin-top:0; font-size:15px;"><i class="fab fa-hubspot"></i> Airflow Context</h3>
+        <div class="context-card">
+            <h4><i class="fas fa-plug"></i> Connections</h4>
+            <div id="connList">
+                <div class="context-item" style="color:#aaa;">Loading...</div>
             </div>
-            <pre class="op-console-body" id="consoleOutput">Execution results will appear here...</pre>
+        </div>
+        <div class="context-card">
+            <h4><i class="fas fa-key"></i> Variables</h4>
+            <div class="context-item">
+                <span>max_extract_limit</span>
+                <span>1000</span>
+            </div>
+            <div class="context-item">
+                <span>environment</span>
+                <span>"staging"</span>
+            </div>
+        </div>
+        <div class="context-card" style="background-color:rgba(19, 91, 236, 0.1); border-color:#135bec;">
+            <p style="font-size:11px; margin:0; line-height:1.4;">
+                <i class="fas fa-info-circle"></i> <code>BaseHook.get_connection()</code> is available and connected to
+                your Toy DB!
+            </p>
         </div>
     </div>
 </div>
@@ -254,36 +386,225 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='vendor/codemirror/js/codemirror.min.js') }}"></script>
-<!-- Assuming mode/python exists, if not code will just be plaintext. We'll use python.js if available. -->
-<script src="{{ url_for('static', filename='vendor/codemirror/js/mode/python/python.js') }}"
+<script src="{{ url_for('static', filename='vendor/codemirror/js/mode/python/python.min.js') }}"
     onerror="this.remove()"></script>
 <script>
     let currentOperatorId = null;
-    let editor;
+    let cells = []; // Array of objects { element, cm, outputBlock }
+    let executionCounter = 1;
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Init CodeMirror
-        editor = CodeMirror.fromTextArea(document.getElementById("codeEditor"), {
-            lineNumbers: true,
-            theme: "dracula",
-            mode: "python",
-            indentUnit: 4,
-            matchBrackets: true
-        });
-
         loadOperators();
+        loadConnectionsContext();
+        createNew(false); // Add one empty cell
     });
 
-    function createNew() {
+    function setKernelStatus(status) {
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        dot.className = 'status-dot';
+        if (status === 'busy') {
+            dot.classList.add('busy');
+            txt.textContent = 'Python 3 (busy...)';
+        } else if (status === 'error') {
+            dot.classList.add('error');
+            txt.textContent = 'Python 3 (error)';
+        } else {
+            txt.textContent = 'Python 3 (idle)';
+        }
+    }
+
+    async function loadConnectionsContext() {
+        const list = document.getElementById('connList');
+        list.innerHTML = `<div class="context-item" style="color:#aaa;">Loading...</div>`;
+        try {
+            const res = await fetch('/api/connections');
+            const conns = await res.json();
+            if (!conns || conns.length === 0) {
+                list.innerHTML = `<div class="context-item" style="color:#aaa;">No connections found</div>`;
+                return;
+            }
+            list.innerHTML = conns.map(c => `
+                <div class="context-item" style="cursor:pointer" onclick="insertConnCode('${c.name}')" title="Click to insert code">
+                    <span>${c.name}</span>
+                    <span style="font-size:10px; background:var(--border-color); padding:1px 5px; border-radius:3px;">${c.conn_type}</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = `<div class="context-item" style="color:#f44;">Failed to load</div>`;
+        }
+    }
+
+    function insertConnCode(connName) {
+        // Insert a snippet into the last focused cell or add a new one
+        const snippet = `conn = BaseHook.get_connection("${connName}")\nprint(f"Host: {conn.host}, Type: {conn.conn_type}")`;
+        addCell(snippet);
+    }
+
+    function createNew(clearList = true) {
         currentOperatorId = null;
         document.getElementById('opName').value = '';
         document.getElementById('opDesc').value = '';
-        editor.setValue('# Write your custom operator or DAG code here\n\n');
         document.getElementById('btnDelete').style.display = 'none';
-        document.getElementById('consoleOutput').textContent = 'Execution results will appear here...';
 
-        // Remove active class from list
-        document.querySelectorAll('.op-item').forEach(el => el.classList.remove('active'));
+        if (clearList) {
+            document.querySelectorAll('.op-item').forEach(el => el.classList.remove('active'));
+        }
+
+        // Clear notebook
+        const nb = document.getElementById('notebook');
+        nb.innerHTML = '';
+        cells = [];
+
+        // Default initial cell
+        addCell('# Write your custom Airflow Operator prototype code here\nfrom airflow.hooks.base import BaseHook\n\n');
+    }
+
+    function addCell(initialCode = '') {
+        const nb = document.getElementById('notebook');
+
+        const cellDiv = document.createElement('div');
+        cellDiv.className = 'cell';
+
+        const cellIndex = cells.length;
+
+        cellDiv.innerHTML = `
+            <div class="cell-gutter">
+                <span class="prompt-text">In [ ]:</span>
+                <button class="btn-run-cell" title="Run Cell"><i class="fas fa-play"></i></button>
+                <button class="btn-del-cell" title="Delete Cell"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="cell-content">
+                <div class="cell-input"></div>
+                <div class="cell-output"></div>
+            </div>
+        `;
+
+        nb.appendChild(cellDiv);
+
+        const inputDiv = cellDiv.querySelector('.cell-input');
+        const outputDiv = cellDiv.querySelector('.cell-output');
+        const runBtn = cellDiv.querySelector('.btn-run-cell');
+        const delBtn = cellDiv.querySelector('.btn-del-cell');
+        const promptTxt = cellDiv.querySelector('.prompt-text');
+
+        // Init CodeMirror
+        const cm = CodeMirror(inputDiv, {
+            value: initialCode,
+            mode: 'python',
+            theme: 'dracula',
+            lineNumbers: false,
+            viewportMargin: Infinity // Auto-resize
+        });
+
+        const cellObj = {
+            dom: cellDiv,
+            cm: cm,
+            output: outputDiv,
+            prompt: promptTxt
+        };
+
+        cells.push(cellObj);
+
+        // Events
+        runBtn.onclick = () => runCell(cellObj);
+        delBtn.onclick = () => {
+            nb.removeChild(cellDiv);
+            cells = cells.filter(c => c !== cellObj);
+        };
+
+        // focus
+        setTimeout(() => cm.refresh(), 10);
+    }
+
+    async function runCell(cellObj) {
+        const code = cellObj.cm.getValue();
+        if (!code.trim()) return;
+
+        cellObj.output.innerHTML = '';
+        cellObj.output.classList.remove('has-content');
+        cellObj.prompt.textContent = `In [*]:`;
+        setKernelStatus('busy');
+
+        try {
+            const res = await fetch('/api/run_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code })
+            });
+
+            const data = await res.json();
+
+            let htmlOut = '';
+
+            if (data.outputs && data.outputs.length > 0) {
+                data.outputs.forEach(out => {
+                    if (out.type === 'stream') {
+                        htmlOut += `<span class="out-stream">${escapeHtml(out.text)}</span>`;
+                    } else if (out.type === 'error') {
+                        htmlOut += `<span class="out-error">${escapeHtml(out.traceback.join('\\n'))}</span>\\n`;
+                    } else if (out.type === 'execute_result' || out.type === 'display_data') {
+                        htmlOut += `<span class="out-result">${escapeHtml(out.data)}</span>\\n`;
+                    }
+                });
+            } else if (data.stdout || data.stderr) {
+                // Fallback
+                if (data.stdout) htmlOut += `<span class="out-stream">${escapeHtml(data.stdout)}</span>`;
+                if (data.stderr) htmlOut += `<span class="out-error">${escapeHtml(data.stderr)}</span>`;
+            }
+
+            if (htmlOut) {
+                cellObj.output.innerHTML = htmlOut;
+                cellObj.output.classList.add('has-content');
+            }
+
+            cellObj.prompt.textContent = `In [${executionCounter++}]:`;
+            setKernelStatus('idle');
+
+        } catch (e) {
+            cellObj.output.innerHTML = `<span class="out-error">${escapeHtml(e.message)}</span>`;
+            cellObj.output.classList.add('has-content');
+            cellObj.prompt.textContent = `In [!]:`;
+            setKernelStatus('error');
+        }
+    }
+
+    async function restartKernel() {
+        setKernelStatus('busy');
+        try {
+            const res = await fetch('/api/restart_kernel', { method: 'POST' });
+            if (res.ok) {
+                setKernelStatus('idle');
+                executionCounter = 1;
+                cells.forEach(c => {
+                    c.prompt.textContent = 'In [ ]:';
+                    c.output.innerHTML = '';
+                    c.output.classList.remove('has-content');
+                });
+            }
+        } catch (e) {
+            alert('Failed to restart kernel');
+            setKernelStatus('error');
+        }
+    }
+
+    // --- Serialization logic for saving operators ---
+    // A primitive notebook format, we bundle all cell codes with a separator
+    const CELL_SEPARATOR = '\\n# --- CELL ---\\n';
+
+    function getCombinedCode() {
+        return cells.map(c => c.cm.getValue()).join(CELL_SEPARATOR);
+    }
+
+    function populateFromCombinedCode(code) {
+        document.getElementById('notebook').innerHTML = '';
+        cells = [];
+
+        const parts = code.split(CELL_SEPARATOR);
+        parts.forEach(p => {
+            if (p) addCell(p);
+        });
+        if (cells.length === 0) addCell();
     }
 
     async function loadOperators() {
@@ -297,50 +618,39 @@
                 const li = document.createElement('li');
                 li.className = 'op-item';
                 if (op.id === currentOperatorId) li.classList.add('active');
-
                 const dateObj = new Date(op.updated_at);
-
                 li.innerHTML = `
                     <div class="op-item-title">${op.name}</div>
-                    <div class="op-item-date">${dateObj.toLocaleString()}</div>
+                    <div style="font-size:11px; color:var(--text-secondary)">${dateObj.toLocaleString()}</div>
                 `;
                 li.onclick = () => loadOperator(op.id);
                 listEl.appendChild(li);
             });
-        } catch (e) {
-            console.error('Failed to load operators', e);
-        }
+        } catch (e) { console.error('Failed to load operators', e); }
     }
 
     async function loadOperator(id) {
         try {
             const res = await fetch(`/api/operators/${id}`);
             const data = await res.json();
-
             currentOperatorId = data.id;
             document.getElementById('opName').value = data.name;
             document.getElementById('opDesc').value = data.description || '';
-            editor.setValue(data.code || '');
+
+            populateFromCombinedCode(data.code || '');
 
             document.getElementById('btnDelete').style.display = 'flex';
-
-            // Update active state in UI
             document.querySelectorAll('.op-item').forEach(el => el.classList.remove('active'));
-            loadOperators(); // reload to set active
-        } catch (e) {
-            console.error('Failed to load operator details', e);
-        }
+            loadOperators();
+        } catch (e) { console.error('Failed to load operator', e); }
     }
 
     async function saveOperator() {
         const name = document.getElementById('opName').value.trim();
         const desc = document.getElementById('opDesc').value.trim();
-        const code = editor.getValue();
+        const code = getCombinedCode();
 
-        if (!name) {
-            alert('Please enter an operator name.');
-            return;
-        }
+        if (!name) { alert('Please enter an operator name.'); return; }
 
         const payload = { name, description: desc, code };
         const method = currentOperatorId ? 'PUT' : 'POST';
@@ -353,7 +663,6 @@
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
-
             if (res.ok) {
                 if (!currentOperatorId && data.id) {
                     currentOperatorId = data.id;
@@ -361,75 +670,26 @@
                 }
                 loadOperators();
                 alert('Saved successfully!');
-            } else {
-                alert('Error keeping record: ' + (data.message || 'Unknown error'));
-            }
-        } catch (e) {
-            console.error(e);
-            alert('Failed to save operator.');
-        }
+            } else { alert('Error: ' + data.message); }
+        } catch (e) { alert('Failed to save.'); }
     }
 
     async function deleteOperator() {
         if (!currentOperatorId) return;
-        if (!confirm('Are you sure you want to delete this operator?')) return;
-
+        if (!confirm('Delete this operator?')) return;
         try {
-            const res = await fetch(`/api/operators/${currentOperatorId}`, {
-                method: 'DELETE'
-            });
-
-            if (res.ok) {
-                createNew();
-                loadOperators();
-            } else {
-                alert('Failed to delete.');
-            }
-        } catch (e) {
-            console.error(e);
-        }
+            const res = await fetch(`/api/operators/${currentOperatorId}`, { method: 'DELETE' });
+            if (res.ok) { createNew(); loadOperators(); }
+        } catch (e) { console.error(e); }
     }
 
-    async function runCode() {
-        const code = editor.getValue();
-        if (!code.trim()) return;
-
-        const outEl = document.getElementById('consoleOutput');
-        const statusEl = document.getElementById('consoleStatus');
-
-        outEl.textContent = 'Running...';
-        outEl.className = 'op-console-body';
-        statusEl.textContent = 'Executing';
-        statusEl.style.color = '#ffeb3b';
-
-        try {
-            const res = await fetch('/api/run_code', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code })
-            });
-            const data = await res.json();
-
-            if (res.ok) {
-                let text = '';
-                if (data.stdout) text += data.stdout;
-                if (data.stderr) text += '\n[STDERR]\n' + data.stderr;
-                outEl.textContent = text || 'Program exited with no output.';
-                outEl.className = data.returncode === 0 ? 'op-console-body console-success' : 'op-console-body console-error';
-                statusEl.textContent = data.returncode === 0 ? 'Success' : 'Error';
-                statusEl.style.color = data.returncode === 0 ? '#4CAF50' : '#f44336';
-            } else {
-                outEl.textContent = data.stderr || data.error || 'Server error occurred.';
-                outEl.className = 'op-console-body console-error';
-                statusEl.textContent = 'Failed';
-                statusEl.style.color = '#f44336';
-            }
-        } catch (e) {
-            outEl.textContent = 'Network or server error: ' + e.message;
-            outEl.className = 'op-console-body console-error';
-            statusEl.textContent = 'Failed';
-            statusEl.style.color = '#f44336';
-        }
+    function escapeHtml(unsafe) {
+        return (unsafe || "").toString()
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
     }
 </script>
 {% endblock %}

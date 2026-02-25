@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 from datetime import datetime
+from jupyter_manager import get_kernel_manager
 
 app = Flask(__name__)
 
@@ -1595,6 +1596,17 @@ def delete_operator(id):
     db.session.commit()
     return jsonify({'message': 'Operator deleted successfully'})
 
+@app.route('/api/connections', methods=['GET'])
+def api_connections():
+    conns = Connection.query.order_by(Connection.name).all()
+    return jsonify([{
+        'id': c.id,
+        'name': c.name,
+        'conn_type': c.conn_type,
+        'host': c.host,
+        'port': c.port
+    } for c in conns])
+
 @app.route('/api/run_code', methods=['POST'])
 def run_code():
     data = request.get_json()
@@ -1602,58 +1614,20 @@ def run_code():
     if not code:
         return jsonify({'error': 'No code provided'}), 400
 
-    mock_prefix = """import sys
-from unittest.mock import MagicMock
-import types
-
-class MockModule(types.ModuleType):
-    def __getattr__(self, name):
-        if name in ('__path__', '__file__'): return []
-        return MagicMock()
-
-class MockImporter:
-    def find_spec(self, fullname, path, target=None):
-        if fullname.split('.')[0] in ['airflow', 'pendulum', 'operators']:
-            import importlib.machinery
-            class MockLoader(importlib.machinery.BuiltinImporter):
-                @classmethod
-                def exec_module(cls, module):
-                    pass
-                @classmethod
-                def create_module(cls, spec):
-                    return MockModule(spec.name)
-            return importlib.machinery.ModuleSpec(fullname, MockLoader)
-        return None
-
-sys.meta_path.insert(0, MockImporter())
-"""
-        
-    # Write code to a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as temp_file:
-        temp_file.write(mock_prefix + "\n" + code)
-        temp_filepath = temp_file.name
-
     try:
-        # Run the code using subprocess
-        result = subprocess.run(
-            ['python', temp_filepath],
-            capture_output=True,
-            text=True,
-            timeout=30 # 30 seconds timeout
-        )
-        return jsonify({
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'returncode': result.returncode
-        })
-    except subprocess.TimeoutExpired:
-        return jsonify({'error': 'Execution timed out', 'stderr': 'Execution timed out after 30 seconds'}), 500
+        # Run code via Jupyter Kernel Manager
+        result = get_kernel_manager().execute_code(code)
+        return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e), 'stderr': str(e)}), 500
-    finally:
-        # Clean up the temporary file
-        if os.path.exists(temp_filepath):
-            os.remove(temp_filepath)
+
+@app.route('/api/restart_kernel', methods=['POST'])
+def restart_kernel():
+    try:
+        get_kernel_manager().restart_kernel()
+        return jsonify({'message': 'Kernel restarted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     with app.app_context():
@@ -1677,4 +1651,4 @@ if __name__ == '__main__':
             db.session.add(default_meta)
             db.session.commit()
             
-    app.run(debug=True, use_reloader=True, port=5000)
+    app.run(debug=True, use_reloader=False, port=5000)
