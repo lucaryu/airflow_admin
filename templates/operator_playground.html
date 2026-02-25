@@ -10,7 +10,7 @@
         display: flex;
         height: calc(100vh - 80px);
         gap: 15px;
-        padding: 75px 15px 15px 15px;
+        padding: 75px 0 0 0;
         box-sizing: border-box;
     }
 
@@ -261,47 +261,6 @@
     .out-result {
         color: #50fa7b;
     }
-
-    /* Right Context sidebar */
-    .context-sidebar {
-        width: 250px;
-        background-color: var(--card-bg);
-        border: 1px solid var(--border-color);
-        border-radius: var(--border-radius);
-        padding: 15px;
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-        overflow-y: auto;
-    }
-
-    .context-card {
-        background-color: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        padding: 10px;
-    }
-
-    .context-card h4 {
-        margin: 0 0 10px 0;
-        color: var(--text-primary);
-        font-size: 13px;
-        border-bottom: 1px solid var(--border-color);
-        padding-bottom: 5px;
-    }
-
-    .context-item {
-        font-size: 12px;
-        margin-bottom: 5px;
-        color: var(--text-secondary);
-        display: flex;
-        justify-content: space-between;
-    }
-
-    .context-item span:first-child {
-        font-weight: 500;
-        color: var(--text-primary);
-    }
 </style>
 {% endblock %}
 
@@ -354,33 +313,7 @@
         </div>
     </div>
 
-    <!-- Right Sidebar: Airflow Context Info -->
-    <div class="context-sidebar">
-        <h3 style="margin-top:0; font-size:15px;"><i class="fab fa-hubspot"></i> Airflow Context</h3>
-        <div class="context-card">
-            <h4><i class="fas fa-plug"></i> Connections</h4>
-            <div id="connList">
-                <div class="context-item" style="color:#aaa;">Loading...</div>
-            </div>
-        </div>
-        <div class="context-card">
-            <h4><i class="fas fa-key"></i> Variables</h4>
-            <div class="context-item">
-                <span>max_extract_limit</span>
-                <span>1000</span>
-            </div>
-            <div class="context-item">
-                <span>environment</span>
-                <span>"staging"</span>
-            </div>
-        </div>
-        <div class="context-card" style="background-color:rgba(19, 91, 236, 0.1); border-color:#135bec;">
-            <p style="font-size:11px; margin:0; line-height:1.4;">
-                <i class="fas fa-info-circle"></i> <code>BaseHook.get_connection()</code> is available and connected to
-                your Toy DB!
-            </p>
-        </div>
-    </div>
+
 </div>
 {% endblock %}
 
@@ -395,7 +328,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         loadOperators();
-        loadConnectionsContext();
         createNew(false); // Add one empty cell
     });
 
@@ -414,32 +346,7 @@
         }
     }
 
-    async function loadConnectionsContext() {
-        const list = document.getElementById('connList');
-        list.innerHTML = `<div class="context-item" style="color:#aaa;">Loading...</div>`;
-        try {
-            const res = await fetch('/api/connections');
-            const conns = await res.json();
-            if (!conns || conns.length === 0) {
-                list.innerHTML = `<div class="context-item" style="color:#aaa;">No connections found</div>`;
-                return;
-            }
-            list.innerHTML = conns.map(c => `
-                <div class="context-item" style="cursor:pointer" onclick="insertConnCode('${c.name}')" title="Click to insert code">
-                    <span>${c.name}</span>
-                    <span style="font-size:10px; background:var(--border-color); padding:1px 5px; border-radius:3px;">${c.conn_type}</span>
-                </div>
-            `).join('');
-        } catch (e) {
-            list.innerHTML = `<div class="context-item" style="color:#f44;">Failed to load</div>`;
-        }
-    }
 
-    function insertConnCode(connName) {
-        // Insert a snippet into the last focused cell or add a new one
-        const snippet = `conn = BaseHook.get_connection("${connName}")\nprint(f"Host: {conn.host}, Type: {conn.conn_type}")`;
-        addCell(snippet);
-    }
 
     function createNew(clearList = true) {
         currentOperatorId = null;
