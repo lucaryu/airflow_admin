@@ -261,6 +261,23 @@
     .out-result {
         color: #50fa7b;
     }
+
+    .op-main.maximized {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 9999;
+        background-color: var(--bg-color, #1e1e1e);
+        padding: 20px;
+        box-sizing: border-box;
+        margin: 0;
+    }
+
+    body.maximized-mode {
+        overflow: hidden;
+    }
 </style>
 {% endblock %}
 
@@ -304,6 +321,8 @@
                     <button class="btn-action" onclick="addCell()"><i class="fas fa-plus"></i> Add Cell</button>
                     <button class="btn-action btn-warning" onclick="restartKernel()"><i class="fas fa-sync-alt"></i>
                         Restart Kernel</button>
+                    <button class="btn-action" onclick="toggleMaximize()" id="btnMaximize"><i class="fas fa-expand"></i>
+                        Maximize</button>
                 </div>
             </div>
         </div>
@@ -347,6 +366,25 @@
     }
 
 
+
+    function toggleMaximize() {
+        const opMain = document.querySelector('.op-main');
+        const btnMaximize = document.getElementById('btnMaximize');
+
+        opMain.classList.toggle('maximized');
+        document.body.classList.toggle('maximized-mode');
+
+        if (opMain.classList.contains('maximized')) {
+            btnMaximize.innerHTML = '<i class="fas fa-compress"></i> Restore';
+        } else {
+            btnMaximize.innerHTML = '<i class="fas fa-expand"></i> Maximize';
+        }
+
+        // refresh codemirror instances so they resize correctly
+        setTimeout(() => {
+            cells.forEach(c => c.cm.refresh());
+        }, 100);
+    }
 
     function createNew(clearList = true) {
         currentOperatorId = null;
