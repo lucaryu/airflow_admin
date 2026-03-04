@@ -1092,7 +1092,10 @@ def add_connection_redirect():
 @app.route('/dag_template.html')
 def dag_template_view():
     templates = Template.query.order_by(Template.created_at.desc()).all()
-    return render_template('dag_template.html', templates=templates)
+    # Connection에 있는 DB 타입을 중복 없이 가져옴
+    conns = Connection.query.with_entities(Connection.conn_type).distinct().all()
+    conn_types = sorted(set(c.conn_type for c in conns if c.conn_type))
+    return render_template('dag_template.html', templates=templates, conn_types=conn_types)
 
 # Serve other static templates for navigation continuity
 @app.route('/<page_name>.html')

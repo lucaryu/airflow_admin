@@ -172,15 +172,21 @@
                         <div class="form-group" style="flex: 1;">
                             <label class="form-label">Source Type</label>
                             <select class="form-select" id="source-type">
-                                <option selected>Oracle</option>
-                                <option>MySQL</option>
+                                {% for ct in conn_types %}
+                                <option value="{{ ct }}">{{ ct }}</option>
+                                {% else %}
+                                <option value="">No connections found</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="form-group" style="flex: 1;">
                             <label class="form-label">Target Type</label>
                             <select class="form-select" id="target-type">
-                                <option selected>PostgreSQL</option>
-                                <option>BigQuery</option>
+                                {% for ct in conn_types %}
+                                <option value="{{ ct }}">{{ ct }}</option>
+                                {% else %}
+                                <option value="">No connections found</option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
