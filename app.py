@@ -1558,14 +1558,37 @@ def generate_dags():
                 continue
             
             source_sql = generate_formatted_sql(mapping)
-            
+
+            # S3 소스인 경우 source_table 경로에서 key_prefix와 file_extension 자동 추출
+            src_conn_type = (mapping.source_conn.conn_type or '').lower() if mapping.source_conn else ''
+            s3_key_prefix = ''
+            s3_file_extension = 'csv'  # 기본값
+
+            if src_conn_type == 's3':
+                raw_path = mapping.source_table or ''
+                # 마지마 '/' 로 분리하여 파일명 업득
+                if '/' in raw_path:
+                    last_slash = raw_path.rfind('/')
+                    s3_key_prefix = raw_path[:last_slash + 1]  # 'folder/sub/' 형태
+                    filename = raw_path[last_slash + 1:]       # 'members.csv' 형태
+                else:
+                    filename = raw_path
+                # 확장자 추출
+                if '.' in filename:
+                    ext = filename.rsplit('.', 1)[-1].lower()
+                    if ext in ('csv', 'parquet'):
+                        s3_file_extension = ext
+
             mapping_info = {
                 'id': mapping.id,
                 'source_table': mapping.source_table,
                 'target_table': mapping.target_table,
                 'source_conn_name': mapping.source_conn.name if mapping.source_conn else 'Unknown',
                 'target_conn_name': mapping.target_conn.name if mapping.target_conn else 'Unknown',
-                'source_sql': source_sql
+                'source_sql': source_sql,
+                # S3 자동 추출 값 (S3가 아닌 경우 빈 문자열)
+                's3_key_prefix': s3_key_prefix,
+                's3_file_extension': s3_file_extension,
             }
             mappings_data.append(mapping_info)
         
@@ -1660,6 +1683,12 @@ def generate_dags():
 
                 catchup_val = 'True' if catchup else 'False'
 
+                # S3 소스에서 자동 추출된 값 사용 (기본값 포함)
+                eff_key_prefix     = m_data.get('s3_key_prefix', '')
+                eff_file_ext       = m_data.get('s3_file_extension', 'csv')
+                eff_csv_delimiter  = ','
+                eff_csv_has_header = 'True'
+
                 replacements = {
                     '{{ source_sql }}': m_data['source_sql'],
                     '{{ Source_SQL }}': m_data['source_sql'],
@@ -1682,6 +1711,15 @@ def generate_dags():
                     '{{ catchup }}': catchup_val,
                     '{{catchup}}': catchup_val,
                     '{{ CATCHUP }}': catchup_val,
+                    # S3 → Oracle DAG 파라미터 (소스에서 자동 추출)
+                    '{{key_prefix}}': eff_key_prefix,
+                    '{{ key_prefix }}': eff_key_prefix,
+                    '{{file_extension}}': eff_file_ext,
+                    '{{ file_extension }}': eff_file_ext,
+                    '{{csv_delimiter}}': eff_csv_delimiter,
+                    '{{ csv_delimiter }}': eff_csv_delimiter,
+                    '{{csv_has_header}}': eff_csv_has_header,
+                    '{{ csv_has_header }}': eff_csv_has_header,
                 }
                 
                 for key, value in replacements.items():
