@@ -239,6 +239,10 @@
 <header class="page-header">
     <h1 class="page-title">Generated DAGs</h1>
     <div style="display: flex; gap: 10px;">
+        <button class="btn btn-success" id="bulkDownloadBtn" style="display: none;" onclick="bulkDownloadDags()">
+            <i class="fas fa-download"></i>
+            <span class="btn-icon-right">Download Selected</span>
+        </button>
         <button class="btn btn-danger" id="bulkDeleteBtn" style="display: none;" onclick="bulkDeleteDags()">
             <i class="fas fa-trash-alt"></i>
             <span class="btn-icon-right">Delete Selected</span>
@@ -628,11 +632,15 @@
     function updateBulkDeleteButton() {
         const checkboxes = document.querySelectorAll('.dag-checkbox:checked');
         const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+        const bulkDownloadBtn = document.getElementById('bulkDownloadBtn');
         if (checkboxes.length > 0) {
             bulkDeleteBtn.style.display = 'inline-flex';
             bulkDeleteBtn.querySelector('span').textContent = `Delete Selected (${checkboxes.length})`;
+            bulkDownloadBtn.style.display = 'inline-flex';
+            bulkDownloadBtn.querySelector('span').textContent = `Download Selected (${checkboxes.length})`;
         } else {
             bulkDeleteBtn.style.display = 'none';
+            bulkDownloadBtn.style.display = 'none';
         }
 
         // Update select all checkbox state if needed
@@ -685,6 +693,42 @@
                     alert(error.message || 'An error occurred while deleting DAGs.');
                 });
         }
+    }
+
+    function bulkDownloadDags() {
+        const checkboxes = document.querySelectorAll('.dag-checkbox:checked');
+        if (checkboxes.length === 0) return;
+
+        const dagIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        fetch('/api/dags/bulk_download', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ dag_ids: dagIds })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.message || 'Error downloading DAGs'); });
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `dags_${new Date().getTime()}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message || 'An error occurred while downloading DAGs.');
+            });
     }
 
     function deleteDag(id) {

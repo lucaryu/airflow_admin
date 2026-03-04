@@ -573,6 +573,18 @@
         </div>
 
         <div
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+            <div>
+                <span class="form-label">Source Table</span>
+                <div id="modal-source-table" style="font-weight: 500; word-break: break-all;"></div>
+            </div>
+            <div>
+                <span class="form-label">Target Table</span>
+                <input type="text" id="modal-target-table" class="form-input" style="font-weight: 500; width: 100%;">
+            </div>
+        </div>
+
+        <div
             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);">
             <h4 style="margin: 0;">Column Mappings</h4>
             <input type="text" id="column-search" class="form-input"
@@ -1003,6 +1015,8 @@
                 modalTitle.innerText = titleText;
                 modalSourceConn.innerText = data.source_conn;
                 modalTargetConn.innerText = data.target_conn;
+                document.getElementById('modal-source-table').innerText = data.source_table;
+                document.getElementById('modal-target-table').value = data.target_table;
                 columnSearch.value = ''; // Reset search
 
                 // Clear existing rows
@@ -1107,14 +1121,17 @@
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ columns: columnsData })
+            body: JSON.stringify({
+                columns: columnsData,
+                target_table: document.getElementById('modal-target-table').value
+            })
         })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
                     alert('Mapping updated successfully!');
                     closeModal();
-                    // Optionally reload table or partial update
+                    window.location.reload();
                 } else {
                     alert('Error saving mapping: ' + data.message);
                 }

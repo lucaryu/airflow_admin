@@ -363,9 +363,12 @@
                             div.style.padding = '8px';
                             div.style.display = 'flex';
                             div.style.alignItems = 'center';
+                            div.style.wordBreak = 'break-all';
+                            div.title = table; // Add tooltip for long names
                             div.innerHTML = `
-                                    <input type="checkbox" value="${table}" style="margin-right: 8px;">
-                                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                                    <input type="checkbox" value="${table}" style="margin-right: 8px; flex-shrink: 0;">
+                                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px; flex-shrink: 0;"></i> 
+                                    <span style="flex-grow: 1;">${table}</span>
                                 `;
                             availableContainer.appendChild(div);
                         });
@@ -416,7 +419,20 @@
                 hint.style.fontSize = '12px';
                 hint.style.color = '#aaa';
                 hint.style.marginLeft = 'auto';
-                hint.innerText = ' -> ' + table.split('.').pop().toLowerCase();
+
+                let targetName;
+                const sourceText = document.getElementById('source-conn').options[document.getElementById('source-conn').selectedIndex].text;
+                if (sourceText.includes('S3')) {
+                    targetName = table.split('/').pop();
+                    if (targetName.includes('.')) {
+                        targetName = targetName.substring(0, targetName.lastIndexOf('.'));
+                    }
+                } else {
+                    targetName = table.split('.').pop();
+                }
+
+                hint.innerText = ' -> ' + targetName.toLowerCase();
+                hint.className = 'target-hint';
                 newDiv.appendChild(hint);
 
                 selectedContainer.appendChild(newDiv);
@@ -436,9 +452,12 @@
             newDiv.style.padding = '8px';
             newDiv.style.display = 'flex';
             newDiv.style.alignItems = 'center';
+            newDiv.style.wordBreak = 'break-all';
+            newDiv.title = table;
             newDiv.innerHTML = `
-                    <input type="checkbox" value="${table}" style="margin-right: 8px;">
-                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                    <input type="checkbox" value="${table}" style="margin-right: 8px; flex-shrink: 0;">
+                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px; flex-shrink: 0;"></i> 
+                    <span style="flex-grow: 1;">${table}</span>
                 `;
             availableContainer.appendChild(newDiv);
             div.remove();
@@ -460,7 +479,20 @@
                     hint.style.fontSize = '12px';
                     hint.style.color = '#aaa';
                     hint.style.marginLeft = 'auto';
-                    hint.innerText = ' -> ' + table.split('.').pop().toLowerCase();
+
+                    let targetName;
+                    const sourceText = document.getElementById('source-conn').options[document.getElementById('source-conn').selectedIndex].text;
+                    if (sourceText.includes('S3')) {
+                        targetName = table.split('/').pop();
+                        if (targetName.includes('.')) {
+                            targetName = targetName.substring(0, targetName.lastIndexOf('.'));
+                        }
+                    } else {
+                        targetName = table.split('.').pop();
+                    }
+
+                    hint.innerText = ' -> ' + targetName.toLowerCase();
+                    hint.className = 'target-hint';
                     newDiv.appendChild(hint);
                     selectedContainer.appendChild(newDiv);
                 }
@@ -480,9 +512,12 @@
                 newDiv.style.padding = '8px';
                 newDiv.style.display = 'flex';
                 newDiv.style.alignItems = 'center';
+                newDiv.style.wordBreak = 'break-all';
+                newDiv.title = table;
                 newDiv.innerHTML = `
-                        <input type="checkbox" value="${table}" style="margin-right: 8px;">
-                        <i class="fas fa-table" style="color: #aaa; margin-right: 8px;"></i> ${table}
+                        <input type="checkbox" value="${table}" style="margin-right: 8px; flex-shrink: 0;">
+                        <i class="fas fa-table" style="color: #aaa; margin-right: 8px; flex-shrink: 0;"></i> 
+                        <span style="flex-grow: 1;">${table}</span>
                     `;
                 availableContainer.appendChild(newDiv);
                 div.remove();

@@ -28,6 +28,8 @@
                 <label class="form-label" for="conn-type">Connection Type</label>
                 <select id="conn-type" name="conn_type" class="form-select" required>
                     <option value="">Select Type...</option>
+                    <option value="s3" {% if connection and connection.conn_type=='s3' %}selected{% endif %}>
+                        S3 / MinIO</option>
                     <option value="oracle" {% if connection and connection.conn_type=='oracle' %}selected{% endif %}>
                         Oracle</option>
                     <option value="postgres" {% if connection and connection.conn_type=='postgres' %}selected{% endif

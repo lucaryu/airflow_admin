@@ -61,8 +61,34 @@ class ConnectionView(ModelView):
         data = request.json or request.form
         host = data.get('host')
         port = data.get('port')
+        conn_type = data.get('conn_type')
+        database = data.get('database')
+        username = data.get('username')
+        password = data.get('password')
         
-        # Simulation logic
+        if conn_type == 's3':
+            import boto3
+            try:
+                # Basic test for S3/MinIO
+                endpoint_url = f"http://{host}:{port}" if host and port else None
+                client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    aws_access_key_id=username,
+                    aws_secret_access_key=password,
+                    region_name='us-east-1'
+                )
+                if database:
+                    # Test specific bucket
+                    client.head_bucket(Bucket=database)
+                    return {'status': 'success', 'message': f'Successfully connected to S3 bucket: {database}'}, 200
+                else:
+                    client.list_buckets()
+                    return {'status': 'success', 'message': 'Successfully connected to S3'}, 200
+            except Exception as e:
+                return {'status': 'error', 'message': f'S3 Connection failed: {str(e)}'}, 400
+
+        # Simulation logic for others
         if host and port:
             return {'status': 'success', 'message': f'Successfully connected to {host}:{port}'}, 200
         else:
@@ -71,6 +97,27 @@ class ConnectionView(ModelView):
     @expose('/test/<int:id>', methods=['POST'])
     def test_connection_id(self, id):
         conn = Connection.query.get_or_404(id)
+        
+        if conn.conn_type == 's3':
+            import boto3
+            try:
+                endpoint_url = f"http://{conn.host}:{conn.port}" if conn.host and conn.port else None
+                client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    aws_access_key_id=conn.username,
+                    aws_secret_access_key=conn.password,
+                    region_name='us-east-1'
+                )
+                if conn.database:
+                    client.head_bucket(Bucket=conn.database)
+                    return {'status': 'success', 'message': f'Successfully connected to S3 bucket: {conn.database}'}, 200
+                else:
+                    client.list_buckets()
+                    return {'status': 'success', 'message': 'Successfully connected to S3'}, 200
+            except Exception as e:
+                return {'status': 'error', 'message': f'S3 Connection failed: {str(e)}'}, 400
+
         # Simulation logic
         if conn.host and conn.port:
             return {'status': 'success', 'message': f'Successfully connected to {conn.name} ({conn.host}:{conn.port})'}, 200
@@ -180,6 +227,30 @@ class MappingView(BaseView):
             tables = ['public.users', 'public.orders', 'public.products', 'finance.transactions', 'analytics.daily_stats']
         elif conn.conn_type == 'mysql':
             tables = ['app_db.users', 'app_db.posts', 'app_db.comments', 'legacy.users']
+        elif conn.conn_type == 's3':
+            import boto3
+            try:
+                endpoint_url = f"http://{conn.host}:{conn.port}" if conn.host and conn.port else None
+                client = boto3.client(
+                    's3',
+                    endpoint_url=endpoint_url,
+                    aws_access_key_id=conn.username,
+                    aws_secret_access_key=conn.password,
+                    region_name='us-east-1'
+                )
+                if not conn.database:
+                    return {'status': 'error', 'message': 'Bucket name (Database) is not specified.'}, 400
+                
+                paginator = client.get_paginator('list_objects_v2')
+                pages = paginator.paginate(Bucket=conn.database)
+                for page in pages:
+                    if 'Contents' in page:
+                        for obj in page['Contents']:
+                            key = obj['Key']
+                            if key.lower().endswith('.csv') or key.lower().endswith('.parquet'):
+                                tables.append(key)
+            except Exception as e:
+                return {'status': 'error', 'message': f'S3 Error: {str(e)}'}, 500
         else:
             tables = [f'schema.table_{i}' for i in range(1, 6)]
             
@@ -302,6 +373,77 @@ class MappingView(BaseView):
                         })
             
             return result
+            
+        def get_s3_columns(conn_obj, file_key):
+            import boto3
+            import pandas as pd
+            import io
+            
+            endpoint_url = f"http://{conn_obj.host}:{conn_obj.port}" if conn_obj.host and conn_obj.port else None
+            client = boto3.client(
+                's3',
+                endpoint_url=endpoint_url,
+                aws_access_key_id=conn_obj.username,
+                aws_secret_access_key=conn_obj.password,
+                region_name='us-east-1'
+            )
+            
+            result = {
+                'table_comment': f'Source file: {file_key}',
+                'columns': []
+            }
+            
+            try:
+                # Get small portion of file
+                if file_key.lower().endswith('.csv'):
+                    # For CSV, read just the first few bytes to get header + 1 row
+                    response = client.get_object(Bucket=conn_obj.database, Key=file_key, Range='bytes=0-10240')
+                    body = response['Body'].read()
+                    
+                    # Ensure we have at least a full line by ignoring the last partial line if needed
+                    # pandas handles this gracefully with error_bad_lines=False or simply reading 1 row
+                    df = pd.read_csv(io.BytesIO(body), nrows=1)
+                elif file_key.lower().endswith('.parquet'):
+                    # For Parquet, we need to read the whole file or at least the metadata
+                    # To keep it simple, we'll download the whole file in memory if it's small,
+                    # but since it's a toy, we'll try to get the object
+                    response = client.get_object(Bucket=conn_obj.database, Key=file_key)
+                    body = response['Body'].read()
+                    df = pd.read_parquet(io.BytesIO(body))
+                    # Just keep 1 row
+                    if len(df) > 0:
+                        df = df.head(1)
+                else:
+                    raise ValueError("Unsupported file format")
+                    
+                for col_name, dtype in df.dtypes.items():
+                    # Map pandas dtypes to generic SQL types
+                    is_nullable = True
+                    type_str = 'VARCHAR(255)'
+                    
+                    if pd.api.types.is_numeric_dtype(dtype):
+                        if pd.api.types.is_float_dtype(dtype):
+                            type_str = 'FLOAT'
+                        else:
+                            type_str = 'INTEGER'
+                    elif pd.api.types.is_datetime64_any_dtype(dtype):
+                        type_str = 'TIMESTAMP'
+                    elif pd.api.types.is_bool_dtype(dtype):
+                        type_str = 'BOOLEAN'
+                    
+                    result['columns'].append({
+                        'name': str(col_name).strip(),
+                        'type': type_str,
+                        'is_pk': False,
+                        'is_nullable': is_nullable,
+                        'is_partition': False,
+                        'comment': '',
+                    })
+            except Exception as e:
+                print(f"Error extracting schema from S3: {e}")
+                raise
+                
+            return result
 
         def format_target_type(oracle_type, target_db_type='postgres'):
             """Convert Oracle type to target DB type based on target database."""
@@ -359,17 +501,28 @@ class MappingView(BaseView):
         new_mappings = []
         for table in selected_tables:
             # Parse owner.table_name
-            parts = table.split('.')
-            if len(parts) == 2:
-                owner = parts[0].upper()
-                table_name = parts[1].upper()
-            else:
-                owner = source_conn.username.upper() if source_conn.username else ''
+            if source_conn.conn_type == 's3':
+                basename = table.split('/')[-1]
+                if '.' in basename:
+                    target_table_name = basename.rsplit('.', 1)[0].lower()
+                else:
+                    target_table_name = basename.lower()
+                
+                # For S3, owner is unused, and table_name is just the full key
+                owner = ''
                 table_name = table.upper()
+            else:
+                parts = table.split('.')
+                if len(parts) == 2:
+                    owner = parts[0].upper()
+                    table_name = parts[1].upper()
+                else:
+                    owner = source_conn.username.upper() if source_conn.username else ''
+                    table_name = table.upper()
+                
+                target_table_name = table.split('.')[-1].lower()
             
-            target_table_name = table.split('.')[-1].lower()
-            
-            # Try to fetch real columns from DB
+            # Try to fetch real columns from DB or S3
             col_data = None
             table_comment = ''
             try:
@@ -377,6 +530,10 @@ class MappingView(BaseView):
                     col_data = get_oracle_columns(source_conn, owner, table_name)
                     table_comment = col_data.get('table_comment', '')
                     print(f"DEBUG: Fetched {len(col_data['columns'])} real columns for {table}")
+                elif source_conn.conn_type == 's3':
+                    col_data = get_s3_columns(source_conn, table)
+                    table_comment = col_data.get('table_comment', '')
+                    print(f"DEBUG: Fetched {len(col_data['columns'])} columns from S3 file {table}")
             except Exception as e:
                 print(f"WARNING: Failed to fetch real columns for {table}: {e}")
                 import traceback
@@ -844,6 +1001,11 @@ def mapping_list_redirect():
 def api_update_mapping(id):
     mapping = Mapping.query.get_or_404(id)
     data = request.json
+    
+    # Update mapping-level fields if provided
+    if 'target_table' in data:
+        mapping.target_table = data.get('target_table')
+        
     columns_data = data.get('columns', [])
     
     provided_ids = []
@@ -1237,6 +1399,36 @@ def delete_dag(id):
         return {'status': 'success', 'message': 'DAG deleted successfully'}, 200
     except Exception as e:
         return {'status': 'error', 'message': str(e)}, 500
+
+@app.route('/api/dags/bulk_download', methods=['POST'])
+def bulk_download_dags():
+    import io
+    import zipfile
+    data = request.json
+    dag_ids = data.get('dag_ids', [])
+    
+    if not dag_ids:
+        return {'status': 'error', 'message': 'No DAG IDs provided'}, 400
+
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for dag_id in dag_ids:
+            try:
+                dag = GeneratedDAG.query.get(dag_id)
+                if dag and dag.filepath and os.path.exists(dag.filepath):
+                    zf.write(dag.filepath, arcname=dag.filename)
+            except Exception as e:
+                print(f"Error zipping DAG {dag_id}: {str(e)}")
+    
+    memory_file.seek(0)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'generated_dags_{timestamp}.zip'
+    )
 
 @app.route('/api/dags/bulk_delete', methods=['POST'])
 def bulk_delete_dags():
