@@ -629,9 +629,14 @@
             style="margin: 0; white-space: pre-wrap; font-family: 'Consolas', 'Monaco', monospace; font-size: 14px;"></pre>
     </div>
     <div class="modal-footer" style="justify-content: space-between;">
-        <button class="btn btn-secondary" onclick="copyToClipboard()">
-            <i class="fas fa-copy"></i> Copy to Clipboard
-        </button>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="copyToClipboard()">
+                <i class="fas fa-copy"></i> Copy to Clipboard
+            </button>
+            <button class="btn btn-secondary" onclick="toggleDdlCase()">
+                <i class="fas fa-font"></i> 대/소문자 전환
+            </button>
+        </div>
         <button class="btn btn-secondary" onclick="closeDdlModal()">Close</button>
     </div>
 </div>
@@ -1416,6 +1421,17 @@
             console.error('Failed to copy: ', err);
             alert('Failed to copy to clipboard.');
         });
+    }
+
+    function toggleDdlCase() {
+        const currentText = ddlContent.innerText;
+        if (!currentText) return;
+
+        if (currentText === currentText.toUpperCase()) {
+            ddlContent.innerText = currentText.toLowerCase();
+        } else {
+            ddlContent.innerText = currentText.toUpperCase();
+        }
     }
 
     // ========== DAG Generation Logic ==========
