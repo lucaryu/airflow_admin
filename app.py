@@ -1566,7 +1566,7 @@ def generate_dags():
 
             if src_conn_type == 's3':
                 raw_path = mapping.source_table or ''
-                # 마지마 '/' 로 분리하여 파일명 업득
+                # 마지막 '/' 로 분리하여 파일명 추출
                 if '/' in raw_path:
                     last_slash = raw_path.rfind('/')
                     s3_key_prefix = raw_path[:last_slash + 1]  # 'folder/sub/' 형태
@@ -1589,6 +1589,8 @@ def generate_dags():
                 # S3 자동 추출 값 (S3가 아닌 경우 빈 문자열)
                 's3_key_prefix': s3_key_prefix,
                 's3_file_extension': s3_file_extension,
+                # S3 전체 파일 경로 (source_table 값 그대로)
+                's3_file_path': mapping.source_table if src_conn_type == 's3' else '',
             }
             mappings_data.append(mapping_info)
         
@@ -1686,6 +1688,7 @@ def generate_dags():
                 # S3 소스에서 자동 추출된 값 사용 (기본값 포함)
                 eff_key_prefix     = m_data.get('s3_key_prefix', '')
                 eff_file_ext       = m_data.get('s3_file_extension', 'csv')
+                eff_file_path      = m_data.get('s3_file_path', '')   # 전체 S3 파일 경로
                 eff_csv_delimiter  = ','
                 eff_csv_has_header = 'True'
 
@@ -1720,6 +1723,11 @@ def generate_dags():
                     '{{ csv_delimiter }}': eff_csv_delimiter,
                     '{{csv_has_header}}': eff_csv_has_header,
                     '{{ csv_has_header }}': eff_csv_has_header,
+                    # S3 전체 파일 경로 (source_table 그대로)
+                    '{{s3_file_path}}': eff_file_path,
+                    '{{ s3_file_path }}': eff_file_path,
+                    '{{S3_FILE_PATH}}': eff_file_path,
+                    '{{ S3_FILE_PATH }}': eff_file_path,
                 }
                 
                 for key, value in replacements.items():

@@ -215,6 +215,16 @@ body {
   border-bottom: 1px solid var(--border-color);
 }
 
+.data-table td:last-child,
+.data-table th:last-child {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.card:has(.data-table) {
+  overflow-x: auto !important;
+}
+
 .data-table th {
   color: var(--text-secondary);
   font-weight: 500;

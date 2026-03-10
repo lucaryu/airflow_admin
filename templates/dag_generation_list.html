@@ -306,12 +306,20 @@
                     <td><span class="status-badge status-{{ 'active' if dag.status == 'Deployed' else 'inactive' }}">{{
                             dag.status }}</span></td>
                     <td>
-                        <button class="btn btn-sm btn-info" style="padding: 4px 8px;" title="View Code"
-                            onclick="viewDagCode({{ dag.id }})"><i class="fas fa-code"></i></button>
-                        <button class="btn btn-sm btn-success" style="padding: 4px 8px;" title="Download"
-                            onclick="downloadDag({{ dag.id }})"><i class="fas fa-download"></i></button>
-                        <button class="btn btn-sm btn-danger" style="padding: 4px 8px;" title="Delete"
-                            onclick="deleteDag({{ dag.id }})"><i class="fas fa-trash-alt"></i></button>
+                        <div style="display: flex; gap: 4px; flex-wrap: nowrap;">
+                            <button class="btn btn-sm btn-info"
+                                style="width: 26px; height: 26px; padding: 0; display: flex; justify-content: center; align-items: center;"
+                                title="View Code" onclick="viewDagCode({{ dag.id }})"><i
+                                    class="fas fa-code"></i></button>
+                            <button class="btn btn-sm btn-success"
+                                style="width: 26px; height: 26px; padding: 0; display: flex; justify-content: center; align-items: center;"
+                                title="Download" onclick="downloadDag({{ dag.id }})"><i
+                                    class="fas fa-download"></i></button>
+                            <button class="btn btn-sm btn-danger"
+                                style="width: 26px; height: 26px; padding: 0; display: flex; justify-content: center; align-items: center;"
+                                title="Delete" onclick="deleteDag({{ dag.id }})"><i
+                                    class="fas fa-trash-alt"></i></button>
+                        </div>
                     </td>
                 </tr>
                 {% else %}
