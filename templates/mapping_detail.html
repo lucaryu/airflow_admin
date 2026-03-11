@@ -18,16 +18,24 @@
 <div class="content-body">
     <div class="card" style="margin-bottom: var(--spacing-md);">
         <h3 style="margin-bottom: var(--spacing-sm); font-weight: 600;">Mapping Configuration</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
             <div>
                 <span class="form-label">Source Connection</span>
-                <div style="font-weight: 500;">{{ mapping.source_conn.name }} ({{
-                    mapping.source_conn.conn_type }})</div>
+                <div style="font-weight: 500;">{{ mapping.source_conn.name }} ({{ mapping.source_conn.conn_type }})</div>
             </div>
             <div>
+                <span class="form-label">Source Schema</span>
+                <div style="font-weight: 500;">{{ mapping.source_schema or '-' }}</div>
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
+            <div>
                 <span class="form-label">Target Connection</span>
-                <div style="font-weight: 500;">{{ mapping.target_conn.name }} ({{
-                    mapping.target_conn.conn_type }})</div>
+                <div style="font-weight: 500;">{{ mapping.target_conn.name }} ({{ mapping.target_conn.conn_type }})</div>
+            </div>
+            <div>
+                <span class="form-label">Target Schema</span>
+                <div style="font-weight: 500;">{{ mapping.target_schema or '-' }}</div>
             </div>
         </div>
     </div>

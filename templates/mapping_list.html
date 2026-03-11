@@ -503,9 +503,13 @@
                             class="fas fa-sort sort-icon"></i></th>
                     <th class="sortable" data-col="1" onclick="sortByColumn(this)">Source Connection<i
                             class="fas fa-sort sort-icon"></i></th>
-                    <th class="sortable" data-col="2" onclick="sortByColumn(this)">Target Connection<i
+                    <th class="sortable" data-col="2" onclick="sortByColumn(this)">Source Schema<i
                             class="fas fa-sort sort-icon"></i></th>
-                    <th class="sortable" data-col="3" onclick="sortByColumn(this)">Target Table<i
+                    <th class="sortable" data-col="3" onclick="sortByColumn(this)">Target Connection<i
+                            class="fas fa-sort sort-icon"></i></th>
+                    <th class="sortable" data-col="4" onclick="sortByColumn(this)">Target Schema<i
+                            class="fas fa-sort sort-icon"></i></th>
+                    <th class="sortable" data-col="5" onclick="sortByColumn(this)">Target Table<i
                             class="fas fa-sort sort-icon"></i></th>
                     <th class="sortable" data-col="4" onclick="sortByColumn(this)">Status<i
                             class="fas fa-sort sort-icon"></i></th>
@@ -521,7 +525,9 @@
                             onchange="updateSelectionButtons()"></td>
                     <td><strong>{{ mapping.source_table }}</strong></td>
                     <td>{{ mapping.source_conn.name }}</td>
+                    <td>{{ mapping.source_schema or '-' }}</td>
                     <td>{{ mapping.target_conn.name }}</td>
+                    <td>{{ mapping.target_schema or '-' }}</td>
                     <td>{{ mapping.target_table }}</td>
                     <td><span class="status-badge status-active">{{ mapping.status }}</span></td>
                     <td>{{ mapping.created_at }}</td>
@@ -567,8 +573,20 @@
                 <div id="modal-source-conn" style="font-weight: 500;"></div>
             </div>
             <div>
+                <span class="form-label">Source Schema</span>
+                <div id="modal-source-schema" style="font-weight: 500;"></div>
+            </div>
+        </div>
+
+        <div
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); margin-bottom: var(--spacing-md);">
+            <div>
                 <span class="form-label">Target Connection</span>
                 <div id="modal-target-conn" style="font-weight: 500;"></div>
+            </div>
+            <div>
+                <span class="form-label">Target Schema</span>
+                <div id="modal-target-schema" style="font-weight: 500;"></div>
             </div>
         </div>
 
@@ -843,9 +861,9 @@
 {% block scripts %}
 <script>
     /* ========== SORT LOGIC ========== */
-    const COL_NAMES = ['Mapping Name', 'Source Connection', 'Target Connection', 'Target Table', 'Status', 'Created At'];
-    // td index: checkbox=0, mapping_name=1, src_conn=2, tgt_conn=3, tgt_table=4, status=5, created_at=6, actions=7
-    const TD_INDEX = [1, 2, 3, 4, 5, 6];
+    const COL_NAMES = ['Mapping Name', 'Source Connection', 'Source Schema', 'Target Connection', 'Target Schema', 'Target Table', 'Status', 'Created At'];
+    // td index: checkbox=0, mapping_name=1, src_conn=2, src_schema=3, tgt_conn=4, tgt_schema=5, tgt_table=6, status=7, created_at=8, actions=9
+    const TD_INDEX = [1, 2, 3, 4, 5, 6, 7, 8];
 
     let singleSortCol = null;
     let advSortCriteria = [];
@@ -1022,6 +1040,8 @@
                 modalTitle.innerText = titleText;
                 modalSourceConn.innerText = data.source_conn;
                 modalTargetConn.innerText = data.target_conn;
+                document.getElementById('modal-source-schema').innerText = data.source_schema || '-';
+                document.getElementById('modal-target-schema').innerText = data.target_schema || '-';
                 document.getElementById('modal-source-table').innerText = data.source_table;
                 document.getElementById('modal-target-table').value = data.target_table;
                 columnSearch.value = ''; // Reset search

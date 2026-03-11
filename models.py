@@ -21,6 +21,8 @@ class Mapping(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source_conn_id = db.Column(db.Integer, db.ForeignKey('connection.id'), nullable=False)
     target_conn_id = db.Column(db.Integer, db.ForeignKey('connection.id'), nullable=False)
+    source_schema = db.Column(db.String(100), nullable=True)
+    target_schema = db.Column(db.String(100), nullable=True)
     source_table = db.Column(db.String(255), nullable=False)
     target_table = db.Column(db.String(255), nullable=False)
     source_table_desc = db.Column(db.String(500), nullable=True)  # Table COMMENTS from DB

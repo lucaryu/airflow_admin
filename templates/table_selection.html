@@ -17,42 +17,41 @@
 </header>
 
 <div class="content-body">
-    <!-- Connection Selection -->
-    <div class="card" style="margin-bottom: var(--spacing-md);">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
-            <div class="form-group">
-                <label class="form-label">Source Connection</label>
-                <select id="source-conn" class="form-select">
-                    <option value="">Select Connection...</option>
-                    {% for conn in connections %}
-                    <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
-                    {% endfor %}
-                </select>
+    <div style="display: flex; gap: var(--spacing-md); height: 600px;">
+        <!-- Left (Source) Column -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: var(--spacing-md);">
+            <!-- Source Connection & Schema -->
+            <div class="card">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
+                    <div class="form-group">
+                        <label class="form-label">Source Connection</label>
+                        <select id="source-conn" class="form-select">
+                            <option value="">Select Connection...</option>
+                            {% for conn in connections %}
+                            <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Source Schema</label>
+                        <select id="source-schema" class="form-select" disabled>
+                            <option value="">Select Connection First...</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Target Connection</label>
-                <select id="target-conn" class="form-select">
-                    <option value="">Select Connection...</option>
-                    {% for conn in connections %}
-                    <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-    </div>
 
-    <!-- Table Selection (Dual List) -->
-    <div style="display: flex; gap: var(--spacing-md); height: 500px;">
-        <!-- Available Tables -->
-        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
-            <h3 style="margin-bottom: var(--spacing-sm);">Available Tables</h3>
-            <input type="text" id="table-search" class="form-input" placeholder="Filter tables..."
-                style="margin-bottom: var(--spacing-sm);">
-
-            <div id="available-tables"
-                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
-                <div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection
-                    to view tables.</div>
+            <!-- Available Tables -->
+            <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                <h3 style="margin-bottom: var(--spacing-sm);">Available Tables</h3>
+                <input type="text" id="table-search" class="form-input" placeholder="Filter tables..."
+                    style="margin-bottom: var(--spacing-sm);">
+                
+                <div id="available-tables"
+                    style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
+                    <div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection
+                        to view tables.</div>
+                </div>
             </div>
         </div>
 
@@ -65,12 +64,36 @@
             <button class="btn btn-secondary" onclick="moveAllLeft()"><i class="fas fa-angle-double-left"></i></button>
         </div>
 
-        <!-- Selected Tables -->
-        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
-            <h3 style="margin-bottom: var(--spacing-sm);">Selected Tables (Target)</h3>
-            <div id="selected-tables"
-                style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
-                <!-- Selected tables will appear here -->
+        <!-- Right (Target) Column -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: var(--spacing-md);">
+            <!-- Target Connection & Schema -->
+            <div class="card">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);">
+                    <div class="form-group">
+                        <label class="form-label">Target Connection</label>
+                        <select id="target-conn" class="form-select">
+                            <option value="">Select Connection...</option>
+                            {% for conn in connections %}
+                            <option value="{{ conn.id }}">{{ conn.name }} ({{ conn.conn_type }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Target Schema</label>
+                        <select id="target-schema" class="form-select" disabled>
+                            <option value="">Select Connection First...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selected Tables -->
+            <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                <h3 style="margin-bottom: var(--spacing-sm);">Selected Tables (Target)</h3>
+                <div id="selected-tables"
+                    style="flex: 1; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: var(--spacing-sm);">
+                    <!-- Selected tables will appear here -->
+                </div>
             </div>
         </div>
     </div>
@@ -343,46 +366,102 @@
 {% block scripts %}
 <script>
     const sourceSelect = document.getElementById('source-conn');
+    const targetSelect = document.getElementById('target-conn');
+    const sourceSchemaSelect = document.getElementById('source-schema');
+    const targetSchemaSelect = document.getElementById('target-schema');
     const availableContainer = document.getElementById('available-tables');
     const selectedContainer = document.getElementById('selected-tables');
 
+    function fetchSchemas(connId, schemaSelectEl, callback) {
+        if (!connId) {
+            schemaSelectEl.innerHTML = '<option value="">Select Connection First...</option>';
+            schemaSelectEl.disabled = true;
+            if (callback) callback();
+            return;
+        }
+        
+        // Fetch schemas
+        fetch(`/api/mappings/fetch_schemas/${connId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'error') {
+                    console.error('Error fetching schemas:', data.message);
+                    return;
+                }
+                schemaSelectEl.innerHTML = '<option value="">(Default / No Schema)</option>';
+                if (data.schemas && data.schemas.length > 0) {
+                    data.schemas.forEach(schema => {
+                        const opt = document.createElement('option');
+                        opt.value = schema;
+                        opt.textContent = schema;
+                        schemaSelectEl.appendChild(opt);
+                    });
+                }
+                schemaSelectEl.disabled = false;
+                if (callback) callback();
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    function fetchSourceTables() {
+        const connId = sourceSelect.value;
+        const schema = sourceSchemaSelect.value;
+        
+        if (!connId) {
+            availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection to view tables.</div>';
+            return;
+        }
+
+        let url = `/api/mappings/fetch_tables/${connId}`;
+        if (schema) {
+            url += `?schema=${encodeURIComponent(schema)}`;
+        }
+
+        availableContainer.innerHTML = '<div style="color: #fff; text-align: center; margin-top: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'error') {
+                    alert('Error fetching tables: ' + data.message);
+                    return;
+                }
+                availableContainer.innerHTML = '';
+                if (data.tables && data.tables.length > 0) {
+                    data.tables.forEach(table => {
+                        const div = document.createElement('div');
+                        div.style.padding = '8px';
+                        div.style.display = 'flex';
+                        div.style.alignItems = 'center';
+                        div.style.wordBreak = 'break-all';
+                        div.title = table; // Add tooltip for long names
+                        div.innerHTML = `
+                                <input type="checkbox" value="${table}" style="margin-right: 8px; flex-shrink: 0;">
+                                <i class="fas fa-table" style="color: #aaa; margin-right: 8px; flex-shrink: 0;"></i> 
+                                <span style="flex-grow: 1;">${table}</span>
+                            `;
+                        availableContainer.appendChild(div);
+                    });
+                } else {
+                    availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">No tables found in this schema/connection.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while fetching tables. Please check the console for details.');
+            });
+    }
+
     sourceSelect.addEventListener('change', function () {
         const connId = this.value;
-        if (connId) {
-            fetch(`/admin/mappings/fetch_tables/${connId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'error') {
-                        alert('Error fetching tables: ' + data.message);
-                        return;
-                    }
-                    availableContainer.innerHTML = '';
-                    if (data.tables && data.tables.length > 0) {
-                        data.tables.forEach(table => {
-                            const div = document.createElement('div');
-                            div.style.padding = '8px';
-                            div.style.display = 'flex';
-                            div.style.alignItems = 'center';
-                            div.style.wordBreak = 'break-all';
-                            div.title = table; // Add tooltip for long names
-                            div.innerHTML = `
-                                    <input type="checkbox" value="${table}" style="margin-right: 8px; flex-shrink: 0;">
-                                    <i class="fas fa-table" style="color: #aaa; margin-right: 8px; flex-shrink: 0;"></i> 
-                                    <span style="flex-grow: 1;">${table}</span>
-                                `;
-                            availableContainer.appendChild(div);
-                        });
-                    } else {
-                        availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">No tables found.</div>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while fetching tables. Please check the console for details.');
-                });
-        } else {
-            availableContainer.innerHTML = '<div style="color: #aaa; text-align: center; margin-top: 20px;">Select a source connection to view tables.</div>';
-        }
+        fetchSchemas(connId, sourceSchemaSelect, fetchSourceTables);
+    });
+
+    sourceSchemaSelect.addEventListener('change', fetchSourceTables);
+
+    targetSelect.addEventListener('change', function () {
+        const connId = this.value;
+        fetchSchemas(connId, targetSchemaSelect);
     });
 
     // Table Search Logic
@@ -652,6 +731,8 @@
     function generateMapping() {
         const sourceConnId = document.getElementById('source-conn').value;
         const targetConnId = document.getElementById('target-conn').value;
+        const sourceSchema = document.getElementById('source-schema').value;
+        const targetSchema = document.getElementById('target-schema').value;
         const selectedInputs = selectedContainer.querySelectorAll('input[type="checkbox"]');
 
         if (!sourceConnId || !targetConnId) {
@@ -675,6 +756,8 @@
             body: JSON.stringify({
                 source_conn_id: sourceConnId,
                 target_conn_id: targetConnId,
+                source_schema: sourceSchema,
+                target_schema: targetSchema,
                 tables: tables
             })
         })

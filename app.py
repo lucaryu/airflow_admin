@@ -22,9 +22,13 @@ db.init_app(app)
 def not_found_error(error):
     with open('dags_generation_debug.log', 'a') as log_file:
         log_file.write(f"404 Error triggered. Path: {request.path}\n")
+        log_file.write(f"Available API Rules:\n")
+        for rule in app.url_map.iter_rules():
+            if '/api/mappings/' in rule.rule:
+                log_file.write(f"  - {rule.endpoint}: {rule.rule}\n")
         
     if request.path.startswith('/api/'):
-        return jsonify({'status': 'error', 'message': 'Resource not found'}), 404
+        return jsonify({'status': 'error', 'message': f'Resource not found: {request.path}'}), 404
     return render_template('404.html'), 404
 
 @app.errorhandler(500)
@@ -183,84 +187,15 @@ class MappingView(BaseView):
         connections = Connection.query.all()
         return self.render('table_selection.html', connections=connections)
 
-    @expose('/fetch_tables/<int:conn_id>')
-    def fetch_tables(self, conn_id):
-        conn = Connection.query.get_or_404(conn_id)
-        # Mock logic to return tables based on connection type
-        tables = []
-        # Implement real Oracle data fetching logic
-        if conn.conn_type == 'oracle':
-            import oracledb
-            try:
-                # Construct DSN properly. host:port/service_name
-                # If conn.database is SID, use host:port:sid or DSN(sid=...)
-                # Assuming conn.database is Service Name for consistency with modern setups
-                dsn = f"{conn.host}:{conn.port}/{conn.database}"
-                print(f"DEBUG: Connecting to Oracle DSN: {dsn}, User: {conn.username}") # Log connection attempt
 
-                with oracledb.connect(user=conn.username, password=conn.password, dsn=dsn) as connection:
-                    print("DEBUG: Connection successful")
-                    with connection.cursor() as cursor:
-                        # Fetch tables accessible to the user, excluding system tables
-                        sql = """
-                            SELECT owner || '.' || table_name 
-                            FROM all_tables 
-                            WHERE owner NOT IN ('SYS', 'SYSTEM', 'OUTLN', 'DBSNMP', 'CTXSYS', 'MDSYS', 
-                                                'OLAPSYS', 'ORDSYS', 'XDB', 'WMSYS', 'LBACSYS', 
-                                                'DVSYS', 'GSMADMIN_INTERNAL', 'APPQOSSYS', 'AUDSYS') 
-                            AND table_name NOT LIKE 'BIN$%'
-                            ORDER BY owner, table_name
-                            FETCH FIRST 100 ROWS ONLY
-                        """
-                        cursor.execute(sql)
-                        tables = [row[0] for row in cursor.fetchall()]
-                        print(f"DEBUG: Found {len(tables)} tables")
-
-            except oracledb.Error as e:
-                error_obj, = e.args
-                print(f"ERROR: Oracle connection failed: {error_obj.message}")
-                return {'status': 'error', 'message': f'Oracle Error: {error_obj.message}'}, 500
-            except Exception as e:
-                 print(f"ERROR: Unexpected error: {str(e)}")
-                 return {'status': 'error', 'message': f'Unexpected Error: {str(e)}'}, 500
-        elif conn.conn_type == 'postgres':
-            tables = ['public.users', 'public.orders', 'public.products', 'finance.transactions', 'analytics.daily_stats']
-        elif conn.conn_type == 'mysql':
-            tables = ['app_db.users', 'app_db.posts', 'app_db.comments', 'legacy.users']
-        elif conn.conn_type == 's3':
-            import boto3
-            try:
-                endpoint_url = f"http://{conn.host}:{conn.port}" if conn.host and conn.port else None
-                client = boto3.client(
-                    's3',
-                    endpoint_url=endpoint_url,
-                    aws_access_key_id=conn.username,
-                    aws_secret_access_key=conn.password,
-                    region_name='us-east-1'
-                )
-                if not conn.database:
-                    return {'status': 'error', 'message': 'Bucket name (Database) is not specified.'}, 400
-                
-                paginator = client.get_paginator('list_objects_v2')
-                pages = paginator.paginate(Bucket=conn.database)
-                for page in pages:
-                    if 'Contents' in page:
-                        for obj in page['Contents']:
-                            key = obj['Key']
-                            if key.lower().endswith('.csv') or key.lower().endswith('.parquet'):
-                                tables.append(key)
-            except Exception as e:
-                return {'status': 'error', 'message': f'S3 Error: {str(e)}'}, 500
-        else:
-            tables = [f'schema.table_{i}' for i in range(1, 6)]
-            
-        return {'tables': tables}, 200
 
     @expose('/generate', methods=['POST'])
     def generate_mapping(self):
         data = request.json
         source_conn_id = data.get('source_conn_id')
         target_conn_id = data.get('target_conn_id')
+        source_schema = data.get('source_schema')
+        target_schema = data.get('target_schema')
         selected_tables = data.get('tables') # List of table names
 
         if not source_conn_id or not target_conn_id or not selected_tables:
@@ -517,7 +452,7 @@ class MappingView(BaseView):
                     owner = parts[0].upper()
                     table_name = parts[1].upper()
                 else:
-                    owner = source_conn.username.upper() if source_conn.username else ''
+                    owner = source_schema.upper() if source_schema else (source_conn.username.upper() if source_conn.username else '')
                     table_name = table.upper()
                 
                 target_table_name = table.split('.')[-1].lower()
@@ -543,6 +478,8 @@ class MappingView(BaseView):
             mapping = Mapping(
                 source_conn_id=source_conn_id,
                 target_conn_id=target_conn_id,
+                source_schema=source_schema,
+                target_schema=target_schema,
                 source_table=table,
                 target_table=target_table_name,
                 source_table_desc=table_comment,
@@ -651,6 +588,8 @@ class MappingView(BaseView):
             'id': mapping.id,
             'source_table': mapping.source_table,
             'target_table': mapping.target_table,
+            'source_schema': mapping.source_schema or '',
+            'target_schema': mapping.target_schema or '',
             'source_conn': f"{mapping.source_conn.name} ({mapping.source_conn.conn_type})",
             'target_conn': f"{mapping.target_conn.name} ({mapping.target_conn.conn_type})",
             'source_table_desc': mapping.source_table_desc or '',
@@ -717,8 +656,8 @@ class MappingView(BaseView):
         # In a real app, we'd check mapping.target_conn.conn_type
         target_db_type = mapping.target_conn.conn_type.lower()
         
-        schema_name = 'public' # Default schema
-        table_name = mapping.target_table
+        schema_name = mapping.target_schema if mapping.target_schema else ('public' if target_db_type == 'postgres' else '')
+        table_name = mapping.target_schema + '.' + mapping.target_table if mapping.target_schema and target_db_type == 'oracle' else mapping.target_table
         
         # Start constructing DDL
         ddl_lines = []
@@ -728,7 +667,8 @@ class MappingView(BaseView):
         ddl_lines.append("")
         
         if target_db_type == 'postgres':
-            ddl_lines.append(f"CREATE TABLE IF NOT EXISTS {schema_name}.{table_name} (")
+            full_table_name = f"{schema_name}.{table_name}" if schema_name else table_name
+            ddl_lines.append(f"CREATE TABLE IF NOT EXISTS {full_table_name} (")
             
             col_defs = []
             pks = []
@@ -795,7 +735,7 @@ class MappingView(BaseView):
             for col in mapping.columns:
                 if col.target_logical_name:
                     comment = col.target_logical_name.replace("'", "''")
-                    ddl_lines.append(f"COMMENT ON COLUMN {schema_name}.{table_name}.{col.target_column} IS '{comment}';")
+                    ddl_lines.append(f"COMMENT ON COLUMN {full_table_name}.{col.target_column} IS '{comment}';")
 
         elif target_db_type == 'oracle':
              ddl_lines.append(f"CREATE TABLE {table_name} (")
@@ -1475,7 +1415,9 @@ def bulk_delete_dags():
 def log_request_info():
     if request.path.startswith('/api/'):
         with open('dags_generation_debug.log', 'a') as log_file:
-            log_file.write(f"API Request: {request.method} {request.path}\n")
+            endpoint = request.endpoint
+            view_args = request.view_args
+            log_file.write(f"API Request: {request.method} {request.path} | Endpoint: {endpoint} | Args: {view_args}\n")
 
 @app.route('/api/dags/<string:id_str>/code', methods=['GET'])
 def get_dag_code_string(id_str):
@@ -1836,6 +1778,102 @@ def delete_operator(id):
     db.session.delete(op)
     db.session.commit()
     return jsonify({'message': 'Operator deleted successfully'})
+
+@app.route('/api/mappings/fetch_schemas/<int:conn_id>', methods=['GET'], strict_slashes=False)
+def api_fetch_schemas(conn_id):
+    conn = Connection.query.get_or_404(conn_id)
+    schemas = []
+    if conn.conn_type == 'oracle':
+        import oracledb
+        try:
+            dsn = f"{conn.host}:{conn.port}/{conn.database}"
+            with oracledb.connect(user=conn.username, password=conn.password, dsn=dsn) as connection:
+                with connection.cursor() as cursor:
+                    sql = """
+                        SELECT username FROM dba_users 
+                        WHERE username NOT IN ('SYS', 'SYSTEM', 'OUTLN', 'DBSNMP', 'CTXSYS', 'MDSYS', 
+                                            'OLAPSYS', 'ORDSYS', 'XDB', 'WMSYS', 'LBACSYS', 
+                                            'DVSYS', 'GSMADMIN_INTERNAL', 'APPQOSSYS', 'AUDSYS')
+                        ORDER BY username
+                    """
+                    try:
+                        cursor.execute(sql)
+                        schemas = [row[0] for row in cursor.fetchall()]
+                    except oracledb.DatabaseError:
+                        sql_fallback = "SELECT DISTINCT owner FROM all_tables ORDER BY owner"
+                        cursor.execute(sql_fallback)
+                        schemas = [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"ERROR: Failed to fetch schemas: {e}")
+            return {'status': 'error', 'message': f'Error fetching schemas: {str(e)}'}, 500
+    elif conn.conn_type == 'postgres':
+        schemas = ['public', 'information_schema', 'pg_catalog']
+    elif conn.conn_type == 'mysql':
+        schemas = ['app_db', 'legacy_db', 'information_schema']
+    elif conn.conn_type == 's3':
+        schemas = []
+    else:
+        schemas = ['schema1', 'schema2', 'schema3']
+        
+    return {'schemas': schemas}, 200
+
+@app.route('/api/mappings/fetch_tables/<int:conn_id>', methods=['GET'], strict_slashes=False)
+def api_fetch_tables(conn_id):
+    conn = Connection.query.get_or_404(conn_id)
+    schema = request.args.get('schema')
+    
+    tables = []
+    if conn.conn_type == 'oracle':
+        import oracledb
+        try:
+            dsn = f"{conn.host}:{conn.port}/{conn.database}"
+            print(f"DEBUG: Connecting to Oracle DSN: {dsn}, User: {conn.username}")
+            with oracledb.connect(user=conn.username, password=conn.password, dsn=dsn) as connection:
+                with connection.cursor() as cursor:
+                    if schema:
+                        sql = """
+                            SELECT table_name 
+                            FROM all_tables 
+                            WHERE owner = :schema
+                            AND table_name NOT LIKE 'BIN$%'
+                        """
+                        cursor.execute(sql, schema=schema)
+                    else:
+                        sql = "SELECT table_name FROM user_tables ORDER BY table_name"
+                        cursor.execute(sql)
+                    results = cursor.fetchall()
+                    tables = [row[0] for row in results]
+        except Exception as e:
+            print(f"ERROR: Failed to fetch Oracle tables: {e}")
+            return {'status': 'error', 'message': f'Error connecting to Oracle: {str(e)}'}, 500
+    elif conn.conn_type == 'postgres':
+        tables = ['users', 'orders', 'products']
+    elif conn.conn_type == 'mysql':
+        tables = ['customers', 'transactions', 'inventory']
+    elif conn.conn_type == 's3':
+        import boto3
+        try:
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=conn.username,
+                aws_secret_access_key=conn.password,
+                endpoint_url=f"http://{conn.host}:{conn.port}" if conn.host and conn.host != 'None' else None,
+                region_name='us-east-1'
+            )
+            bucket = conn.database 
+            if not bucket:
+                 tables = ['members.csv', 'events.json', 'logs/']
+            else:
+                response = s3_client.list_objects_v2(Bucket=bucket)
+                if 'Contents' in response:
+                    tables = [obj['Key'] for obj in response['Contents']]
+        except Exception as e:
+             print(f"ERROR: S3 Fetch failed: {e}")
+             tables = ['error_fetching_s3_files']
+    else:
+        tables = ['table1', 'table2', 'table3']
+        
+    return {'tables': tables}, 200
 
 @app.route('/api/connections', methods=['GET'])
 def api_connections():
